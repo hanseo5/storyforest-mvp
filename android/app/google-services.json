@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "580984401842",
+    "project_id": "storyforest-mvp-hsl02",
+    "storage_bucket": "storyforest-mvp-hsl02.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:580984401842:android:8a5530a0fb7b7a0d6e3eab",
+        "android_client_info": {
+          "package_name": "com.storyforest.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "580984401842-anh7p8iiiv1fd8bms0q6t1tmptbaq7kd.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD1TQPpRpzxRRtvII2Tj3Wj13tQck0yzTs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "580984401842-anh7p8iiiv1fd8bms0q6t1tmptbaq7kd.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "580984401842-hgjvouo7qsjubku4osf9ptau4cvaqg62.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.storyforest.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
