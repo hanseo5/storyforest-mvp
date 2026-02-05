@@ -758,133 +758,51 @@ export const generateCompleteStory = async (
     variables: StoryVariables,
     onProgress?: ProgressCallback
 ): Promise<GeneratedStory> => {
-    console.log('[GeminiService] Generating complete story for:', variables.childName);
+    console.log('[GeminiService] Generating complete story via Cloud Function for:', variables.childName);
 
-    const pageCount = 12; // Fixed at 12 pages for now
+    // Import Cloud Functions service
+    const { generateStorySecure } = await import('./cloudFunctionsService');
+
+    const pageCount = 12;
     const style = 'Soft Watercolor with warm pastel tones';
 
-    // Convert interests to labels
-    const interestLabels = variables.interests.map(id => INTEREST_LABELS[id] || id);
-    const messageLabel = variables.message === 'custom'
-        ? variables.customMessage
-        : MESSAGE_LABELS[variables.message] || variables.message;
+    try {
+        onProgress?.(0, pageCount);
 
-    // Step 1: Generate story text
-    onProgress?.(0, pageCount);
+        // Call Cloud Function (API key is securely stored on server)
+        const story = await generateStorySecure({
+            childName: variables.childName,
+            childAge: variables.childAge,
+            interests: variables.interests,
+            message: variables.message,
+            customMessage: variables.customMessage,
+            targetLanguage: variables.targetLanguage || 'Korean'
+        }, onProgress);
 
-    const storyPrompt = `당신은 세계적인 아동 그림책 작가입니다. 다음 정보를 바탕으로 ${pageCount}페이지 짧은 동화를 만들어주세요.
+        console.log('[GeminiService] Story generated via Cloud Function:', story.title);
+        return story;
+    } catch (error) {
+        console.error('[GeminiService] Cloud Function error, falling back to mock:', error);
 
-주인공: ${variables.childName} (${variables.childAge}살)
-좋아하는 것: ${interestLabels.join(', ')}
-전달하고 싶은 메시지: "${messageLabel}"
+        // Fallback to mock data if Cloud Function fails
+        const interestLabels = variables.interests.map(id => INTEREST_LABELS[id] || id);
+        const messageLabel = variables.message === 'custom'
+            ? variables.customMessage
+            : MESSAGE_LABELS[variables.message] || variables.message;
 
-📚 작성 규칙:
-1. 주인공의 이름 "${variables.childName}"을(를) 반드시 사용하세요
-2. 좋아하는 것들(${interestLabels.join(', ')})이 이야기에 자연스럽게 등장해야 합니다
-3. 각 페이지는 1-2문장만 (그림책 스타일)
-4. 교훈 "${messageLabel}"을(를) 결말에 자연스럽게 녹여주세요
-5. ${variables.childAge}살 아이가 이해할 수 있는 쉬운 어휘
-6. 따뜻하고 긍정적인 분위기
+        const mockPages = Array.from({ length: pageCount }, (_, i) => ({
+            pageNumber: i + 1,
+            text: getMockPageText(variables.childName, interestLabels, messageLabel || '', i + 1),
+            imageUrl: undefined
+        }));
 
-스토리 구조:
-- 1-2페이지: 도입 (주인공 소개)
-- 3-8페이지: 전개 (모험/사건)
-- 9-11페이지: 클라이맥스
-- 12페이지: 결말 (교훈 전달)
-
-반환 형식 (JSON만, 마크다운 없음):
-{"title": "제목", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
-
-    let storyData: { title: string; pages: { pageNumber: number; text: string }[] };
-
-    if (!API_KEY) {
-        // Mock story generation
-        console.warn('[GeminiService] No API key, generating mock story');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        storyData = {
+        return {
             title: `${variables.childName}의 마법 모험`,
-            pages: Array.from({ length: pageCount }, (_, i) => ({
-                pageNumber: i + 1,
-                text: getMockPageText(variables.childName, interestLabels, messageLabel || '', i + 1)
-            }))
+            style,
+            pages: mockPages
         };
-    } else {
-        try {
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: storyPrompt }] }],
-                    generationConfig: {
-                        temperature: 0.8,
-                        maxOutputTokens: 4096,
-                    }
-                })
-            });
-
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-            const data = await response.json();
-            const text = data.candidates[0].content.parts[0].text;
-
-            // Parse JSON from response
-            let jsonStr = text.replace(/^```(?:json)?\\s*\\n?/i, '').replace(/\\n?```\\s*$/i, '');
-            const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-            if (jsonMatch) jsonStr = jsonMatch[0];
-
-            storyData = JSON.parse(jsonStr);
-            console.log('[GeminiService] Story generated:', storyData.title);
-        } catch (error) {
-            console.error('[GeminiService] Story generation failed:', error);
-            // Fallback to mock
-            storyData = {
-                title: `${variables.childName}의 마법 모험`,
-                pages: Array.from({ length: pageCount }, (_, i) => ({
-                    pageNumber: i + 1,
-                    text: getMockPageText(variables.childName, interestLabels, messageLabel || '', i + 1)
-                }))
-            };
-        }
     }
-
-    // Step 2: Generate images for each page
-    const generatedPages: GeneratedPage[] = [];
-
-    for (let i = 0; i < storyData.pages.length; i++) {
-        const page = storyData.pages[i];
-        onProgress?.(i + 1, storyData.pages.length, true);
-
-        try {
-            const imagePrompt = `Children's picture book illustration, ${style}:
-Scene: ${page.text}
-Main character: ${variables.childName}, a ${variables.childAge}-year-old child
-Elements: ${interestLabels.join(', ')}
-Style: Warm, inviting, child-friendly, full page illustration with no text`;
-
-            const imageUrl = await generateImage(imagePrompt, style);
-
-            generatedPages.push({
-                pageNumber: page.pageNumber,
-                text: page.text,
-                imageUrl
-            });
-        } catch (error) {
-            console.error(`[GeminiService] Image generation failed for page ${i + 1}:`, error);
-            generatedPages.push({
-                pageNumber: page.pageNumber,
-                text: page.text,
-                imageUrl: undefined
-            });
-        }
-    }
-
-    return {
-        title: storyData.title,
-        style,
-        pages: generatedPages
-    };
-};
+}
 
 // Helper function for mock story generation
 function getMockPageText(

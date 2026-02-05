@@ -5,3 +5,4 @@ admin.initializeApp();
 
 export * from './registerVoice';
 export * from './generateAudio';
+export * from './geminiProxy';

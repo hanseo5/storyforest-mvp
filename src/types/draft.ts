@@ -11,6 +11,7 @@ export interface StoryVariables {
     interests: string[];
     message: string;
     customMessage?: string;
+    targetLanguage?: string;
 }
 
 export interface DraftPage {
