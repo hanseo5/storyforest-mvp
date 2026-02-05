@@ -139,8 +139,22 @@ Style: Warm, inviting, child-friendly, full page illustration with no text`;
 });
 // Internal helper for image generation
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function generateImageInternal(prompt, _style, apiKey) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`, {
+async function generateImageInternal(prompt, style, apiKey) {
+    const enhancedPrompt = `You are a film director creating a storyboard frame for a children's picture book.
+
+Art style: ${style}.
+
+🎬 CURRENT SCENE: "${prompt}"
+
+INSTRUCTIONS:
+1. Create a beautiful, high-quality children's book illustration
+2. Use vibrant colors and engaging compositions
+3. Make characters expressive and appealing to children
+4. Ensure the image is suitable for a picture book
+5. Do NOT include any text in the image
+
+Generate an illustration that captures this scene perfectly.`;
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -148,13 +162,15 @@ async function generateImageInternal(prompt, _style, apiKey) {
                 {
                     parts: [
                         {
-                            text: `Generate an image: ${prompt}`,
+                            text: enhancedPrompt,
                         },
                     ],
                 },
             ],
             generationConfig: {
-                responseModalities: ['TEXT', 'IMAGE'],
+                temperature: 1.0,
+                topK: 64,
+                topP: 0.98,
             },
         }),
     });
