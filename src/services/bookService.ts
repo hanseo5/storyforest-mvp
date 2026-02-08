@@ -82,7 +82,7 @@ export const publishBook = async (storyData: GeneratedStoryData): Promise<string
             description: `${storyData.variables?.childName || '아이'}를 위한 특별한 동화`,
             style: storyData.style,
             createdAt: Date.now(),
-            originalLanguage: 'Korean',
+            originalLanguage: 'English',
             variables: storyData.variables,
         };
 

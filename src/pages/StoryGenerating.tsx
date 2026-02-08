@@ -5,47 +5,53 @@ import { Sparkles, BookOpen, Image as ImageIcon, Feather, Star, Palette } from '
 import { generateCompleteStory } from '../services/geminiService';
 import type { StoryVariables } from '../types/draft';
 import owlImage from '../assets/mascots/owl.png';
+import { useTranslation } from '../hooks/useTranslation';
+import { useStore } from '../store';
 
-// 부엉이 가이드 메시지
-const OWL_MESSAGES = {
+// Owl message keys for translation
+const OWL_MESSAGE_KEYS = {
     text: [
-        "열심히 이야기를 쓰고 있어요! ✍️",
-        "어떤 모험이 펼쳐질까요? 🌟",
-        "상상력을 펼쳐볼게요! ✨",
-        "마법의 깃펜으로 써볼게요! 🪶"
+        'gen_owl_text_1',
+        'gen_owl_text_2',
+        'gen_owl_text_3',
+        'gen_owl_text_4'
     ],
     images: [
-        "예쁜 그림을 그리고 있어요! 🎨",
-        "색칠을 하고 있어요... 🖌️",
-        "마법의 붓으로 그리는 중! 🪄",
-        "아주 예쁜 색깔로요! 🌈"
+        'gen_owl_images_1',
+        'gen_owl_images_2',
+        'gen_owl_images_3',
+        'gen_owl_images_4'
     ],
     complete: [
-        "짜잔! 동화가 완성되었어요! 🎉",
-        "멋진 이야기가 탄생했어요! 📖"
+        'gen_owl_complete_1',
+        'gen_owl_complete_2'
     ]
 };
 
 export const StoryGenerating: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
+    const { t } = useTranslation();
+    const { targetLanguage } = useStore();
     const state = location.state as { variables: StoryVariables } | null;
 
     const [phase, setPhase] = useState<'text' | 'images' | 'complete'>('text');
     const [progress, setProgress] = useState(0);
     const [pageProgress, setPageProgress] = useState({ current: 0, total: 12 });
-    const [statusMessage, setStatusMessage] = useState('스토리를 구상하고 있어요...');
-    const [owlMessage, setOwlMessage] = useState(OWL_MESSAGES.text[0]);
+    const [statusMessage, setStatusMessage] = useState(t('gen_writing_story'));
+    const [owlMessageKey, setOwlMessageKey] = useState(OWL_MESSAGE_KEYS.text[0]);
 
     const isGenerating = useRef(false);
 
     // Update owl message based on phase
     useEffect(() => {
-        const messages = OWL_MESSAGES[phase];
+        const keys = OWL_MESSAGE_KEYS[phase];
         let index = 0;
+        setOwlMessageKey(keys[0]); // Reset to first message of new phase
+
         const interval = setInterval(() => {
-            index = (index + 1) % messages.length;
-            setOwlMessage(messages[index]);
+            index = (index + 1) % keys.length;
+            setOwlMessageKey(keys[index]);
         }, 3000);
         return () => clearInterval(interval);
     }, [phase]);
@@ -63,10 +69,10 @@ export const StoryGenerating: React.FC = () => {
             try {
                 // Phase 1: Generate story text
                 setPhase('text');
-                setStatusMessage(`${state.variables.childName}의 모험을 만들고 있어요...`);
+                setStatusMessage(t('gen_creating_story', { name: state.variables.childName }));
 
                 const story = await generateCompleteStory(
-                    state.variables,
+                    { ...state.variables, targetLanguage: targetLanguage || 'English' },
                     (pageNum, total, imageProgress) => {
                         // Progress callback
                         if (imageProgress !== undefined) {
@@ -74,18 +80,18 @@ export const StoryGenerating: React.FC = () => {
                             setPhase('images');
                             setPageProgress({ current: pageNum, total });
                             setProgress(Math.round((pageNum / total) * 100));
-                            setStatusMessage(`그림을 그리고 있어요... (${pageNum}/${total})`);
+                            setStatusMessage(t('gen_drawing_images', { current: String(pageNum), total: String(total) }));
                         } else {
                             // Text generation phase
                             setProgress(30);
-                            setStatusMessage('이야기를 쓰고 있어요...');
+                            setStatusMessage(t('gen_writing_story'));
                         }
                     }
                 );
 
                 setPhase('complete');
                 setProgress(100);
-                setStatusMessage('완성! ✨');
+                setStatusMessage(t('gen_complete'));
 
                 // Navigate to preview
                 setTimeout(() => {
@@ -99,13 +105,13 @@ export const StoryGenerating: React.FC = () => {
 
             } catch (error) {
                 console.error('[StoryGenerating] Error:', error);
-                alert('동화 생성에 실패했습니다. 다시 시도해주세요.');
+                alert(t('error')); // Creating a basic alert using existing error key or fallback
                 navigate('/create');
             }
         };
 
         generate();
-    }, [state, navigate]);
+    }, [state, navigate, t]);
 
     if (!state?.variables) {
         return null;
@@ -229,9 +235,10 @@ export const StoryGenerating: React.FC = () => {
                         />
                     </div>
 
+
                     {/* Speech bubble - prominent */}
                     <motion.div
-                        key={owlMessage}
+                        key={owlMessageKey}
                         initial={{ opacity: 0, y: 10, scale: 0.9 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         className="absolute -top-6 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-8 py-4 shadow-2xl border-3 border-amber-400 whitespace-nowrap z-30"
@@ -241,7 +248,7 @@ export const StoryGenerating: React.FC = () => {
                             animate={{ scale: [1, 1.02, 1] }}
                             transition={{ duration: 0.8, repeat: Infinity }}
                         >
-                            {owlMessage}
+                            {t(owlMessageKey)}
                         </motion.p>
                         <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border-r-3 border-b-3 border-amber-400 transform rotate-45" />
                     </motion.div>
@@ -263,7 +270,7 @@ export const StoryGenerating: React.FC = () => {
                     >
                         <img
                             src={owlImage}
-                            alt="부엉이"
+                            alt="Owl"
                             className="w-full h-full object-contain drop-shadow-2xl"
                             style={{
                                 filter: 'drop-shadow(0 0 50px rgba(251, 191, 36, 0.5))'
@@ -337,7 +344,7 @@ export const StoryGenerating: React.FC = () => {
 
                 {/* Title */}
                 <h1 className="text-3xl md:text-4xl font-black text-white mb-2 drop-shadow-lg">
-                    {state.variables.childName}의 동화를 만들고 있어요
+                    {t('gen_creating_story', { name: state.variables.childName })}
                 </h1>
                 <p className="text-amber-200 mb-6 text-lg">🌲 STORYFOREST 🌲</p>
 
@@ -375,7 +382,7 @@ export const StoryGenerating: React.FC = () => {
                     <div className="flex justify-between items-center mt-3">
                         <span className="text-amber-200 text-lg font-bold">{progress}%</span>
                         <span className="text-amber-200/70 text-sm">
-                            {phase === 'images' && `${pageProgress.current}/${pageProgress.total} 페이지`}
+                            {phase === 'images' && `${pageProgress.current}/${pageProgress.total} ${t('gen_pages')}`}
                         </span>
                     </div>
                 </div>
@@ -389,7 +396,7 @@ export const StoryGenerating: React.FC = () => {
                             : 'text-white/40'
                         }`}>
                         <BookOpen size={18} />
-                        <span className="text-sm font-bold">이야기</span>
+                        <span className="text-sm font-bold">{t('gen_story')}</span>
                         {phase === 'text' && (
                             <motion.div
                                 className="w-2 h-2 bg-white rounded-full"
@@ -405,7 +412,7 @@ export const StoryGenerating: React.FC = () => {
                             : 'text-white/40'
                         }`}>
                         <ImageIcon size={18} />
-                        <span className="text-sm font-bold">그림</span>
+                        <span className="text-sm font-bold">{t('gen_images')}</span>
                         {phase === 'images' && (
                             <motion.div
                                 className="w-2 h-2 bg-white rounded-full"
@@ -419,7 +426,7 @@ export const StoryGenerating: React.FC = () => {
                         : 'text-white/40'
                         }`}>
                         <Sparkles size={18} />
-                        <span className="text-sm font-bold">완성</span>
+                        <span className="text-sm font-bold">{t('gen_done')}</span>
                     </div>
                 </div>
             </motion.div>

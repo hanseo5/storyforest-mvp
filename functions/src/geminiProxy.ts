@@ -71,37 +71,90 @@ export const generateStory = onCall(
             ? variables.customMessage
             : MESSAGE_LABELS[variables.message] || variables.message;
 
-        // Determine language for story generation
-        const languageInstruction = variables.targetLanguage === 'English'
-            ? 'Write the story in English.'
-            : variables.targetLanguage === 'Japanese'
-                ? '日本語で物語を書いてください。'
-                : '한국어로 동화를 작성해주세요.';
 
-        const storyPrompt = `당신은 세계적인 아동 그림책 작가입니다. 다음 정보를 바탕으로 ${pageCount}페이지 짧은 동화를 만들어주세요.
+        // Build prompt based on target language
+        const isEnglish = variables.targetLanguage === 'English';
+        const isJapanese = variables.targetLanguage === 'Japanese';
 
-주인공: ${variables.childName} (${variables.childAge}살)
-좋아하는 것: ${interestLabels.join(', ')}
-전달하고 싶은 메시지: "${messageLabel}"
+        let storyPrompt: string;
 
-📚 작성 규칙:
-1. 주인공의 이름 "${variables.childName}"을(를) 반드시 사용하세요
-2. 좋아하는 것들(${interestLabels.join(', ')})이 이야기에 자연스럽게 등장해야 합니다
-3. 각 페이지는 1-2문장만 (그림책 스타일)
-4. 교훈 "${messageLabel}"을(를) 결말에 자연스럽게 녹여주세요
-5. ${variables.childAge}살 아이가 이해할 수 있는 쉬운 어휘
-6. 따뜻하고 긍정적인 분위기
+        if (isEnglish) {
+            storyPrompt = `You are a world-renowned children's picture book author. Create a ${pageCount}-page short story based on the following information.
 
-${languageInstruction}
+Protagonist: ${variables.childName} (${variables.childAge} years old)
+Interests: ${interestLabels.join(', ')}
+Message to convey: "${messageLabel}"
 
-스토리 구조:
-- 1-2페이지: 도입 (주인공 소개)
-- 3-8페이지: 전개 (모험/사건)
-- 9-11페이지: 클라이맥스
-- 12페이지: 결말 (교훈 전달)
+📚 Writing Rules:
+1. Always use the protagonist's name "${variables.childName}"
+2. The interests (${interestLabels.join(', ')}) should naturally appear in the story
+3. Each page should have only 1-2 sentences (picture book style)
+4. Naturally incorporate the message "${messageLabel}" in the ending
+5. Use simple vocabulary that a ${variables.childAge}-year-old can understand
+6. Warm and positive atmosphere
 
-반환 형식 (JSON만, 마크다운 없음):
-{"title": "제목", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
+Story Structure:
+- Pages 1-2: Introduction (introduce protagonist)
+- Pages 3-8: Development (adventure/events)
+- Pages 9-11: Climax
+- Page 12: Conclusion (deliver the message)
+
+IMPORTANT: Write the entire story in English.
+
+Return format (JSON only, no markdown):
+{"title": "Title", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
+        } else if (isJapanese) {
+            storyPrompt = `あなたは世界的な児童絵本作家です。以下の情報に基づいて${pageCount}ページの短い物語を作成してください。
+
+主人公: ${variables.childName} (${variables.childAge}歳)
+好きなもの: ${interestLabels.join(', ')}
+伝えたいメッセージ: "${messageLabel}"
+
+📚 作成ルール:
+1. 主人公の名前「${variables.childName}」を必ず使用してください
+2. 好きなもの（${interestLabels.join(', ')}）が物語に自然に登場する必要があります
+3. 各ページは1-2文のみ（絵本スタイル）
+4. 教訓「${messageLabel}」を結末に自然に組み込んでください
+5. ${variables.childAge}歳の子供が理解できる簡単な言葉
+6. 温かく前向きな雰囲気
+
+物語の構造:
+- 1-2ページ: 導入（主人公紹介）
+- 3-8ページ: 展開（冒険/出来事）
+- 9-11ページ: クライマックス
+- 12ページ: 結末（教訓を伝える）
+
+重要: 物語全体を日本語で書いてください。
+
+返却形式（JSONのみ、マークダウンなし）:
+{"title": "タイトル", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
+        } else {
+            // Default: English
+            storyPrompt = `You are a world-renowned children's picture book author. Create a ${pageCount}-page short story based on the following information.
+
+Protagonist: ${variables.childName} (${variables.childAge} years old)
+Interests: ${interestLabels.join(', ')}
+Message to convey: "${messageLabel}"
+
+📚 Writing Rules:
+1. Always use the protagonist's name "${variables.childName}"
+2. The interests (${interestLabels.join(', ')}) should naturally appear in the story
+3. Each page should have only 1-2 sentences (picture book style)
+4. Naturally incorporate the message "${messageLabel}" in the ending
+5. Use simple vocabulary that a ${variables.childAge}-year-old can understand
+6. Warm and positive atmosphere
+
+Story Structure:
+- Pages 1-2: Introduction (introduce protagonist)
+- Pages 3-8: Development (adventure/events)
+- Pages 9-11: Climax
+- Page 12: Conclusion (deliver the message)
+
+IMPORTANT: Write the entire story in English.
+
+Return format (JSON only, no markdown):
+{"title": "Title", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
+        }
 
         try {
             const response = await fetch(

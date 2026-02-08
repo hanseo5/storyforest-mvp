@@ -52,7 +52,7 @@ export const useStore = create<AppState>((set: any, get: any) => ({
     isTranslatingBooks: false,
     translationProgress: null,
 
-    targetLanguage: null,
+    targetLanguage: 'English',
     setTargetLanguage: async (lang: string) => {
         const { user } = get();
         if (user) {

@@ -116,7 +116,7 @@ export const Home: React.FC = () => {
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold text-emerald-800">STORYFOREST</h1>
-                            <p className="text-sm text-emerald-600">동화책방</p>
+                            <p className="text-sm text-emerald-600">{t('app_subtitle')}</p>
                         </div>
                     </motion.div>
 
@@ -126,12 +126,12 @@ export const Home: React.FC = () => {
                             <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full border-2 border-emerald-200" />
                         )}
                         <span className="text-sm font-medium text-emerald-700 hidden sm:block">
-                            {user?.displayName || '사용자'}
+                            {user?.displayName || t('default_user')}
                         </span>
                         <button
                             onClick={() => auth.signOut()}
                             className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors"
-                            title="로그아웃"
+                            title={t('logout')}
                         >
                             <LogOut size={20} />
                         </button>

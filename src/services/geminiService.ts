@@ -711,6 +711,7 @@ interface StoryVariables {
     interests: string[];
     message: string;
     customMessage?: string;
+    targetLanguage?: string;
 }
 
 interface GeneratedPage {
@@ -776,7 +777,7 @@ export const generateCompleteStory = async (
             interests: variables.interests,
             message: variables.message,
             customMessage: variables.customMessage,
-            targetLanguage: variables.targetLanguage || 'Korean'
+            targetLanguage: variables.targetLanguage || 'English'
         }, onProgress);
 
         console.log('[GeminiService] Story generated via Cloud Function:', story.title);

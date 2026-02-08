@@ -38,7 +38,12 @@ export const generateStorySecure = async (
 ): Promise<GeneratedStory> => {
     console.log('[CloudFunctions] Calling generateStory function...');
 
-    const generateStoryFn = httpsCallable<StoryVariables, GeneratedStory>(functions, 'generateStory');
+    // Set timeout to 5 minutes (300000ms) for story generation which takes a long time
+    const generateStoryFn = httpsCallable<StoryVariables, GeneratedStory>(
+        functions,
+        'generateStory',
+        { timeout: 300000 }
+    );
 
     try {
         // Note: Progress callback won't work with Cloud Functions in real-time

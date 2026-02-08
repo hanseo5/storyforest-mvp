@@ -7,6 +7,9 @@ import { publishBook } from '../services/bookService';
 import type { StoryVariables } from '../types/draft';
 import owlImage from '../assets/mascots/owl.png';
 
+import { useTranslation } from '../hooks/useTranslation';
+// ... existing imports
+
 interface GeneratedPage {
     pageNumber: number;
     text: string;
@@ -23,6 +26,7 @@ export const StoryPreview: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useStore();
+    const { t } = useTranslation();
 
     const state = location.state as {
         story: GeneratedStory;
@@ -49,12 +53,12 @@ export const StoryPreview: React.FC = () => {
                         alt="부엉이"
                         className="w-24 h-24 object-contain mx-auto mb-4 opacity-50"
                     />
-                    <p className="text-gray-600 mb-4">동화책을 찾을 수 없습니다.</p>
+                    <p className="text-gray-600 mb-4">{t('preview_not_found')}</p>
                     <button
                         onClick={() => navigate('/create')}
                         className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors"
                     >
-                        새 동화 만들기
+                        {t('preview_create_new')}
                     </button>
                 </div>
             </div>
@@ -105,11 +109,11 @@ export const StoryPreview: React.FC = () => {
 
             // Navigate to library
             navigate('/library', {
-                state: { message: '동화책이 출판되었습니다! ✨' }
+                state: { message: t('preview_publish_success') }
             });
         } catch (error) {
             console.error('[StoryPreview] Publish error:', error);
-            alert('출판에 실패했습니다. 다시 시도해주세요.');
+            alert(t('preview_publish_error'));
         } finally {
             setIsPublishing(false);
         }
@@ -167,7 +171,7 @@ export const StoryPreview: React.FC = () => {
                         {/* Speech bubble */}
                         <div className="bg-white rounded-2xl px-5 py-3 shadow-xl border-2 border-amber-200 max-w-xs">
                             <p className="text-amber-800 font-medium text-sm">
-                                🎉 짜잔! {variables.childName}의 동화책이 완성되었어요! 마음에 드시면 출판해주세요~
+                                🎉 {t('preview_congrats', { name: variables.childName })} {t('preview_publish_hint')}
                             </p>
                             <div className="absolute -bottom-2 left-12 w-4 h-4 bg-white border-r-2 border-b-2 border-amber-200 transform rotate-45" />
                         </div>
@@ -183,7 +187,7 @@ export const StoryPreview: React.FC = () => {
                         className="flex items-center text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
                     >
                         <ChevronLeft className="w-5 h-5 mr-1" />
-                        처음으로
+                        {t('to_start')}
                     </button>
 
                     <div className="flex items-center gap-2">
@@ -280,7 +284,7 @@ export const StoryPreview: React.FC = () => {
                         className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white border-2 border-emerald-200 text-emerald-700 rounded-2xl font-bold hover:bg-emerald-50 hover:border-emerald-300 transition-all disabled:opacity-50 shadow-md"
                     >
                         <RefreshCw size={20} className={isRegenerating ? 'animate-spin' : ''} />
-                        다시 만들기
+                        {t('regenerate')}
                     </button>
 
                     <button
@@ -291,12 +295,12 @@ export const StoryPreview: React.FC = () => {
                         {isPublishing ? (
                             <>
                                 <span className="animate-spin">✨</span>
-                                출판 중...
+                                {t('preview_publishing')}
                             </>
                         ) : (
                             <>
                                 <Sparkles size={20} />
-                                출판하기 📚
+                                {t('publish')} 📚
                             </>
                         )}
                     </button>
@@ -305,15 +309,15 @@ export const StoryPreview: React.FC = () => {
                 {/* Story Info */}
                 <div className="mt-8 p-4 bg-white/80 rounded-2xl border-2 border-emerald-100 shadow-md">
                     <div className="flex items-center gap-4 text-sm text-emerald-700">
-                        <span>📖 {totalPages}페이지</span>
+                        <span>📖 {totalPages}{t('gen_pages')}</span>
                         <span>🎨 {story.style}</span>
-                        <span>👶 {variables.childName} ({variables.childAge}살)</span>
+                        <span>👶 {variables.childName} ({variables.childAge}{t('years_old')})</span>
                     </div>
                 </div>
 
                 {/* STORYFOREST branding */}
                 <div className="mt-6 text-center">
-                    <p className="text-emerald-600/60 text-sm">🌲 STORYFOREST - 동화책방 🌲</p>
+                    <p className="text-emerald-600/60 text-sm">🌲 {t('footer_tagline')} 🌲</p>
                 </div>
             </div>
         </div>

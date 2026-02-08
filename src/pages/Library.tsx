@@ -340,7 +340,7 @@ export const Library: React.FC = () => {
                         >
                             <Globe className="w-5 h-5 text-emerald-600 group-hover:rotate-12 transition-transform" />
                             <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 group-hover:text-emerald-700">
-                                {targetLanguage || 'Select Language'}
+                                {targetLanguage || t('select_language')}
                             </span>
                         </button>
 
@@ -402,7 +402,9 @@ export const Library: React.FC = () => {
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-emerald-900">{t('translating_books')}</h4>
-                                    <p className="text-emerald-600 text-sm">{translationProgress.current} / {translationProgress.total} 책 처리 중</p>
+                                    <p className="text-emerald-600 text-sm">
+                                        {t('processing_books', { current: String(translationProgress.current), total: String(translationProgress.total) })}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex-1 max-w-xs mx-8 h-3 bg-emerald-200 rounded-full overflow-hidden">
@@ -479,7 +481,7 @@ export const Library: React.FC = () => {
                                             <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
                                                 <span className="text-white font-bold text-sm flex items-center gap-2">
                                                     <Book size={16} />
-                                                    읽기
+                                                    {t('read_label')}
                                                 </span>
                                             </div>
                                         </div>
