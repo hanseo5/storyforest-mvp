@@ -40,7 +40,7 @@ export const BookReader: React.FC = () => {
 
     // Background Music State
     const [isBgmPlaying, setIsBgmPlaying] = useState(true);
-    const [bgmVolume, setBgmVolume] = useState(0.3);
+    const [bgmVolume] = useState(0.3);
     const bgmRef = useRef<HTMLAudioElement | null>(null);
 
     // Playback Speed State
@@ -272,7 +272,7 @@ export const BookReader: React.FC = () => {
                 }
             }, 500);
         }
-    }, [pageIndex, book, loading, selectedVoiceId]);
+    }, [pageIndex, book, loading, selectedVoiceId, mode]);
 
     const playAudio = async (requestId?: number) => {
         // If requestId is provided, ensure it matches the current request
@@ -293,7 +293,7 @@ export const BookReader: React.FC = () => {
 
         // Get text to speak
         const cachedPages = needsTranslation ? translationCache[id!]?.[targetLanguage]?.pages : null;
-        let rawText = cachedPages?.[currentPage.pageNumber] || currentPage.text;
+        const rawText = cachedPages?.[currentPage.pageNumber] || currentPage.text;
 
         // Clean the text before speaking (remove "Translation:" prefixes etc)
         const displayText = cleanTranslatedText(rawText);

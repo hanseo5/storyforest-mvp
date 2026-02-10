@@ -32,7 +32,7 @@ export const registerVoiceForGeneration = async (userId: string, name: string, a
         });
 
         console.log('[VoiceService] Function called successfully', result.data);
-        return (result.data as any).voiceId;
+        return (result.data as { voiceId: string }).voiceId;
 
     } catch (error) {
         console.error('[VoiceService] Failed to register voice:', error);

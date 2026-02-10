@@ -42,4 +42,5 @@ admin.initializeApp();
 __exportStar(require("./registerVoice"), exports);
 __exportStar(require("./generateAudio"), exports);
 __exportStar(require("./geminiProxy"), exports);
+__exportStar(require("./elevenlabs"), exports);
 //# sourceMappingURL=index.js.map

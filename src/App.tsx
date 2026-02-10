@@ -36,7 +36,7 @@ function App() {
     } else {
       setHasLanguage(false);
     }
-  }, []);
+  }, [setTargetLanguage]);
 
   // Step 2: Handle Firebase auth (only after language check)
   useEffect(() => {
@@ -67,7 +67,7 @@ function App() {
     });
 
     return () => unsubscribe();
-  }, [setUser, setLoading, hasLanguage]);
+  }, [setUser, setLoading, hasLanguage, targetLanguage]);
 
   // Handle language selection
   const handleLanguageSelected = (lang: string) => {

@@ -144,7 +144,7 @@ export const MetadataEditor: React.FC = () => {
             setPageCount(newMetadata.pages || 50);
 
             if (newMetadata.characters && newMetadata.characters.length > 0) {
-                setCharacters(newMetadata.characters.map((c: any, i: number) => ({
+                setCharacters(newMetadata.characters.map((c: { name: string; description: string }, i: number) => ({
                     id: (Date.now() + i).toString(),
                     name: c.name,
                     description: c.description,

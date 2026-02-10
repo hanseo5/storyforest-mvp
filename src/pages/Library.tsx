@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks -- Math.random for animation initial positions is acceptable */
 import React, { useEffect, useState } from 'react';
 import { Settings, Mic, User as UserIcon, ListMusic, Globe, AlertTriangle, Home, Sparkles, Star, Book, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';

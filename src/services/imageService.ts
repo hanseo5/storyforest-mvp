@@ -61,7 +61,7 @@ ${prevTextsStr}
             ? references.characters.map((c, i) => `- Image ${i + 1}: Reference for character "${c.name}"`).join('\n')
             : (references?.protagonistImage ? `- Image 1: Reference for main character "${context?.characterName || 'protagonist'}"` : '');
 
-        const promptParts: any[] = [{
+        const promptParts: Array<{ text: string }> = [{
             text: `You are a film director creating storyboard frame ${context?.pageNumber || '?'} for a children's picture book.
 
 Art style: ${style}.
@@ -128,7 +128,10 @@ INSTRUCTIONS:
             });
         }
 
-        const requestBody: any = {
+        const requestBody: {
+            contents: Array<{ parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> }>;
+            generationConfig: { temperature: number; topK: number; topP: number };
+        } = {
             contents: [{
                 parts: promptParts
             }],

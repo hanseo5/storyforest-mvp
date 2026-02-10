@@ -6,7 +6,7 @@ import { useStore } from '../store';
 import { doc, getDoc, getDocs, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { publishDraft } from '../services/bookService';
-import type { DraftBook } from '../types/draft';
+import type { DraftBook, DraftPage } from '../types/draft';
 
 interface LocationState {
     draftId: string;
@@ -48,7 +48,7 @@ export const CoverEditor: React.FC = () => {
                 const pagesSnapshot = await getDocs(pagesQuery);
                 const pages = pagesSnapshot.docs.map(doc => doc.data());
 
-                draftData.pages = pages as any[];
+                draftData.pages = pages as unknown as DraftPage[];
                 setDraft(draftData);
 
                 // Use first page image as initial cover

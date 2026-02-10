@@ -28,8 +28,8 @@ interface AppState {
     setTargetLanguage: (lang: string) => Promise<void>;
 
     // Translation cache: Record<bookId, Record<language, TranslatedContent>>
-    translationCache: Record<string, Record<string, any>>;
-    setTranslatedBook: (bookId: string, lang: string, data: any) => void;
+    translationCache: Record<string, Record<string, { title: string; description: string; pages: Record<number, string> }>>;
+    setTranslatedBook: (bookId: string, lang: string, data: { title: string; description: string; pages: Record<number, string> }) => void;
 
     setUser: (user: UserProfile | null) => void;
     setLoading: (loading: boolean) => void;
@@ -41,7 +41,7 @@ interface AppState {
     popBackgroundTask: () => BackgroundTask | undefined;
 }
 
-export const useStore = create<AppState>((set: any, get: any) => ({
+export const useStore = create<AppState>((set: (fn: (state: AppState) => Partial<AppState>) => void, get: () => AppState) => ({
     user: null,
     isLoading: true,
 
@@ -70,7 +70,7 @@ export const useStore = create<AppState>((set: any, get: any) => ({
     },
 
     translationCache: {},
-    setTranslatedBook: (bookId: string, lang: string, data: any) => set((state: AppState) => ({
+    setTranslatedBook: (bookId: string, lang: string, data: { title: string; description: string; pages: Record<number, string> }) => set((state: AppState) => ({
         translationCache: {
             ...state.translationCache,
             [bookId]: {

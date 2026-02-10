@@ -90,8 +90,9 @@ exports.registerVoice = (0, https_1.onRequest)({ secrets: [apiKey], cors: true }
         res.status(200).json({ success: true, voiceId, status: 'processing' });
     }
     catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
         console.error('[RegisterVoice] Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: errorMessage });
     }
 });
 //# sourceMappingURL=registerVoice.js.map

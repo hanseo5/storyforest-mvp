@@ -52,25 +52,31 @@ export const LanguageSelection: React.FC<LanguageSelectionProps> = ({ onClose, i
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-emerald-950 to-transparent opacity-70" />
 
                 {/* Fireflies */}
-                {[...Array(15)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        className="absolute w-1 h-1 bg-amber-300 rounded-full"
-                        style={{
-                            left: `${Math.random() * 100}%`,
-                            top: `${Math.random() * 100}%`,
-                        }}
-                        animate={{
-                            opacity: [0.2, 1, 0.2],
-                            scale: [0.5, 1.3, 0.5],
-                        }}
-                        transition={{
-                            duration: 2 + Math.random() * 2,
-                            repeat: Infinity,
-                            delay: Math.random() * 2,
-                        }}
-                    />
-                ))}
+                {[...Array(15)].map((_, i) => {
+                    const left = Math.random() * 100;
+                    const top = Math.random() * 100;
+                    const duration = 2 + Math.random() * 2;
+                    const delay = Math.random() * 2;
+                    return (
+                        <motion.div
+                            key={i}
+                            className="absolute w-1 h-1 bg-amber-300 rounded-full"
+                            style={{
+                                left: `${left}%`,
+                                top: `${top}%`,
+                            }}
+                            animate={{
+                                opacity: [0.2, 1, 0.2],
+                                scale: [0.5, 1.3, 0.5],
+                            }}
+                            transition={{
+                                duration,
+                                repeat: Infinity,
+                                delay,
+                            }}
+                        />
+                    );
+                })}
 
                 {/* Sparkles */}
                 {[...Array(6)].map((_, i) => (

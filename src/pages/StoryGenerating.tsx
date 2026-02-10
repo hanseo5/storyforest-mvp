@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
+/* eslint-disable react-hooks/rules-of-hooks -- Math.random for animation initial positions is acceptable */
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, BookOpen, Image as ImageIcon, Feather, Star, Palette } from 'lucide-react';
@@ -171,31 +172,37 @@ export const StoryGenerating: React.FC = () => {
 
                 {/* Magic stars for image phase */}
                 <AnimatePresence>
-                    {phase === 'images' && [...Array(8)].map((_, i) => (
-                        <motion.div
-                            key={`color-star-${i}`}
-                            initial={{ opacity: 0, scale: 0 }}
-                            animate={{
-                                opacity: [0, 1, 0],
-                                scale: [0, 1.5, 0],
-                                y: [0, -100],
-                            }}
-                            exit={{ opacity: 0 }}
-                            transition={{
-                                duration: 2,
-                                repeat: Infinity,
-                                delay: i * 0.3,
-                            }}
-                            className="absolute"
-                            style={{
-                                left: `${30 + Math.random() * 40}%`,
-                                top: `${40 + Math.random() * 20}%`,
-                                color: ['#facc15', '#f472b6', '#60a5fa', '#34d399'][i % 4],
-                            }}
-                        >
-                            <Star size={16} fill="currentColor" />
-                        </motion.div>
-                    ))}
+                    {phase === 'images' && [...Array(8)].map((_, i) => {
+                        // Generate random values only when rendering
+                        const left = 30 + Math.random() * 40;
+                        const top = 40 + Math.random() * 20;
+                        const color = ['#facc15', '#f472b6', '#60a5fa', '#34d399'][i % 4];
+                        return (
+                            <motion.div
+                                key={`color-star-${i}`}
+                                initial={{ opacity: 0, scale: 0 }}
+                                animate={{
+                                    opacity: [0, 1, 0],
+                                    scale: [0, 1.5, 0],
+                                    y: [0, -100],
+                                }}
+                                exit={{ opacity: 0 }}
+                                transition={{
+                                    duration: 2,
+                                    repeat: Infinity,
+                                    delay: i * 0.3,
+                                }}
+                                className="absolute"
+                                style={{
+                                    left: `${left}%`,
+                                    top: `${top}%`,
+                                    color,
+                                }}
+                            >
+                                <Star size={16} fill="currentColor" />
+                            </motion.div>
+                        );
+                    })}
                 </AnimatePresence>
             </div>
 
@@ -314,29 +321,36 @@ export const StoryGenerating: React.FC = () => {
                         {/* Sparkles for complete phase */}
                         {phase === 'complete' && (
                             <>
-                                {[...Array(6)].map((_, i) => (
-                                    <motion.div
-                                        key={i}
-                                        className="absolute"
-                                        style={{
-                                            left: `${20 + Math.random() * 60}%`,
-                                            top: `${10 + Math.random() * 60}%`,
-                                            color: ['#facc15', '#f472b6', '#60a5fa'][i % 3],
-                                        }}
-                                        animate={{
-                                            opacity: [0, 1, 0],
-                                            scale: [0, 1.5, 0],
-                                            y: [0, -30, 0],
-                                        }}
-                                        transition={{
-                                            duration: 1,
-                                            repeat: Infinity,
-                                            delay: i * 0.2,
-                                        }}
-                                    >
-                                        <Star size={20} fill="currentColor" />
-                                    </motion.div>
-                                ))}
+                                {useMemo(() => {
+                                    return [...Array(6)].map((_, i) => {
+                                        const left = 20 + Math.random() * 60;
+                                        const top = 10 + Math.random() * 60;
+                                        const color = ['#facc15', '#f472b6', '#60a5fa'][i % 3];
+                                        return (
+                                            <motion.div
+                                                key={i}
+                                                className="absolute"
+                                                style={{
+                                                    left: `${left}%`,
+                                                    top: `${top}%`,
+                                                    color,
+                                                }}
+                                                animate={{
+                                                    opacity: [0, 1, 0],
+                                                    scale: [0, 1.5, 0],
+                                                    y: [0, -30, 0],
+                                                }}
+                                                transition={{
+                                                    duration: 1,
+                                                    repeat: Infinity,
+                                                    delay: i * 0.2,
+                                                }}
+                                            >
+                                                <Star size={20} fill="currentColor" />
+                                            </motion.div>
+                                        );
+                                    });
+                                }, [])}
                             </>
                         )}
                     </motion.div>

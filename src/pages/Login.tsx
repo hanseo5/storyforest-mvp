@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks -- Math.random for animation initial positions is acceptable */
 import React, { useState } from 'react';
 import { signInAnonymously } from 'firebase/auth';
 import { auth } from '../lib/firebase';

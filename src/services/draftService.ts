@@ -1,4 +1,4 @@
-import { collection, addDoc, doc, setDoc, updateDoc, getDoc, getDocs, query, where, orderBy, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, updateDoc, getDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { DraftBook, DraftPage } from '../types/draft';
 

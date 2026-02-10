@@ -33,7 +33,7 @@ export const clearAudioCache = (bookId?: string) => {
  * Returning true if successful.
  */
 export const preloadBookAudio = async (
-    book: Book & { pages: any[] },
+    book: Book & { pages: Array<{ pageNumber: number; text: string; imageUrl: string }> },
     language: string,
     voiceId?: string,
     onProgress?: (progress: PreloadProgress) => void
@@ -44,7 +44,7 @@ export const preloadBookAudio = async (
 
     let loadedCount = 0;
     const totalPages = book.pages.length;
-    let customAudioMap: Map<number, string> = new Map();
+    const customAudioMap: Map<number, string> = new Map();
 
     // If custom voice, fetch paths from Firestore first
     if (voiceId && voiceId.length > 10) { // Simple check for custom voice ID (assuming generated IDs are long)
@@ -67,7 +67,7 @@ export const preloadBookAudio = async (
                     try {
                         const url = await getDownloadURL(ref(storage, data.storagePath));
                         return { pageNumber: data.pageNumber, url };
-                    } catch (e) {
+                    } catch {
                         console.warn('Failed to get download URL for custom audio:', data.storagePath);
                         return null;
                     }

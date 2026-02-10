@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { translateContent } from '../services/geminiService';
 import { useStore } from '../store';
-import type { Book } from '../types';
+import type { Book, Page } from '../types';
 import { useTranslation } from '../hooks/useTranslation';
 import { detectLanguage, cleanTranslatedText } from '../utils/textUtils';
 
@@ -18,7 +18,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
     const modalRef = useRef<HTMLDivElement>(null);
     const { targetLanguage, setTranslatedBook, translationCache } = useStore();
     const { t } = useTranslation();
-    const [fullBook, setFullBook] = useState<(Book & { pages: any[] }) | null>(null);
+    const [fullBook, setFullBook] = useState<(Book & { pages: Page[] }) | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
 
     // Automatic translation when language changes (if modal is open)
@@ -85,7 +85,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
         };
 
         prepareContent();
-    }, [book, targetLanguage, translationCache, book?.id]);
+    }, [book, book?.id, targetLanguage, translationCache, setTranslatedBook]);
 
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (modalRef.current && !modalRef.current.contains(e.target as Node)) {

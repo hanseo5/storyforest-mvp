@@ -25,6 +25,8 @@ const MESSAGE_LABELS = {
 exports.generateStory = (0, https_1.onCall)({
     secrets: [geminiApiKey],
     timeoutSeconds: 300,
+    enforceAppCheck: false,
+    cors: true,
     memory: '1GiB',
 }, async (request) => {
     const variables = request.data;
@@ -191,7 +193,6 @@ Style: Warm, inviting, child-friendly, full page illustration with no text`;
     }
 });
 // Internal helper for image generation
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function generateImageInternal(prompt, style, apiKey) {
     const enhancedPrompt = `You are a film director creating a storyboard frame for a children's picture book.
 
@@ -244,6 +245,8 @@ Generate an illustration that captures this scene perfectly.`;
 exports.translateContent = (0, https_1.onCall)({
     secrets: [geminiApiKey],
     timeoutSeconds: 60,
+    enforceAppCheck: false,
+    cors: true,
 }, async (request) => {
     const { text, targetLanguage } = request.data;
     if (!text || !targetLanguage) {

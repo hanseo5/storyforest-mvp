@@ -48,6 +48,8 @@ export const generateStory = onCall(
     {
         secrets: [geminiApiKey],
         timeoutSeconds: 300,
+        enforceAppCheck: false,
+        cors: true,
         memory: '1GiB',
     },
     async (request: { data: StoryVariables }): Promise<GeneratedStory> => {
@@ -233,7 +235,6 @@ Style: Warm, inviting, child-friendly, full page illustration with no text`;
 );
 
 // Internal helper for image generation
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function generateImageInternal(prompt: string, style: string, apiKey: string): Promise<string> {
     const enhancedPrompt = `You are a film director creating a storyboard frame for a children's picture book.
 
@@ -296,6 +297,8 @@ export const translateContent = onCall(
     {
         secrets: [geminiApiKey],
         timeoutSeconds: 60,
+        enforceAppCheck: false,
+        cors: true,
     },
     async (request: { data: { text: string; targetLanguage: string } }): Promise<string> => {
         const { text, targetLanguage } = request.data as { text: string; targetLanguage: string };

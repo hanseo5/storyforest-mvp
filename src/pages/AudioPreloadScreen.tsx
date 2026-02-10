@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Sparkles, BookOpen, Volume2, Star, Music, Headphones } from 'lucide-react';
+import { CheckCircle, Sparkles, BookOpen, Star, Music, Headphones } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateAllBooksAudio, generateTranslatedAudio, type AudioGenerationProgress } from '../services/bookService';
 import { useStore } from '../store';

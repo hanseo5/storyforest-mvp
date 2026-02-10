@@ -84,3 +84,72 @@ export const translateContentSecure = async (
         throw error;
     }
 };
+
+/**
+ * Add a voice using the Cloud Function
+ */
+export const addVoiceSecure = async (
+    name: string,
+    audioBase64: string,
+    description?: string
+): Promise<string> => {
+    console.log('[CloudFunctions] Calling addVoiceFunction...');
+
+    const addVoiceFn = httpsCallable<
+        { name: string; audioBase64: string; description?: string },
+        string
+    >(functions, 'addVoiceFunction');
+
+    try {
+        const result = await addVoiceFn({ name, audioBase64, description });
+        console.log('[CloudFunctions] Voice added successfully:', result.data);
+        return result.data;
+    } catch (error: unknown) {
+        console.error('[CloudFunctions] Error calling addVoiceFunction:', error);
+        throw error;
+    }
+};
+
+/**
+ * Generate speech using the Cloud Function
+ */
+export const generateSpeechSecure = async (
+    text: string,
+    voiceId: string
+): Promise<string> => {
+    console.log('[CloudFunctions] Calling generateSpeechFunction...');
+
+    const generateSpeechFn = httpsCallable<
+        { text: string; voiceId: string },
+        string
+    >(functions, 'generateSpeechFunction');
+
+    try {
+        const result = await generateSpeechFn({ text, voiceId });
+        // Result is base64 encoded audio
+        return `data:audio/mpeg;base64,${result.data}`;
+    } catch (error: unknown) {
+        console.error('[CloudFunctions] Error calling generateSpeechFunction:', error);
+        throw error;
+    }
+};
+
+/**
+ * Delete a voice using the Cloud Function
+ */
+export const deleteVoiceSecure = async (voiceId: string): Promise<void> => {
+    console.log('[CloudFunctions] Calling deleteVoiceFunction...');
+
+    const deleteVoiceFn = httpsCallable<{ voiceId: string }, void>(
+        functions,
+        'deleteVoiceFunction'
+    );
+
+    try {
+        await deleteVoiceFn({ voiceId });
+        console.log('[CloudFunctions] Voice deleted successfully');
+    } catch (error: unknown) {
+        console.error('[CloudFunctions] Error calling deleteVoiceFunction:', error);
+        throw error;
+    }
+};

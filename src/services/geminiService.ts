@@ -138,7 +138,7 @@ RETURN ONLY THIS JSON (one line, properly escaped):
                 const extracted = {
                     title: titleMatch[1].trim(),
                     description: '',
-                    characters: [] as any[],
+                    characters: [] as Array<{ id: string; name: string; description: string; imageUrl?: string | null }>,
                     style: styleMatch[1].trim(),
                     pages: pagesMatch ? parseInt(pagesMatch[1]) : 50
                 };
@@ -177,7 +177,7 @@ export const generateImagePlaceholder = (keyword: string) => {
     return `https://source.unsplash.com/800x600/?${encodeURIComponent(keyword)},illustration`;
 }
 
-export const generateStoryPages = async (title: string, characters: any[], style: string, pageCount: number = 50) => {
+export const generateStoryPages = async (title: string, characters: Array<{ id: string; name: string; description: string; imageUrl?: string | null }>, style: string, pageCount: number = 50) => {
     console.log('[GeminiService] Generating story pages...', { title, pageCount });
 
     const charactersContext = characters.map(c => `${c.name}: ${c.description}`).join('\n');
@@ -513,7 +513,7 @@ Return ONLY the description text. No titles, no labels, no "Here is your descrip
 };
 export const continueStory = async (
     title: string,
-    characters: any[],
+    characters: Array<{ id: string; name: string; description: string; imageUrl?: string | null }>,
     style: string,
     previousPages: { pageNumber: number; text: string }[]
 ): Promise<string> => {
@@ -702,8 +702,6 @@ Return ONLY the refined text.`
 };
 
 // ==================== NEW: Complete Story Generation ====================
-
-import { generateImage } from './imageService';
 
 interface StoryVariables {
     childName: string;

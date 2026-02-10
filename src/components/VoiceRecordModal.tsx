@@ -3,7 +3,8 @@ import { X, Mic, Square, Check, ChevronRight, Play, Pause, RotateCcw } from 'luc
 import { addVoice } from '../services/elevenLabsService';
 import { saveVoice } from '../services/voiceService';
 import { useStore } from '../store';
-import { RecordingQualityGuide, SAMPLE_TEXTS, getRecommendedTime } from './RecordingQualityGuide';
+import { RecordingQualityGuide } from './RecordingQualityGuide';
+import { SAMPLE_TEXTS, getRecommendedTime } from '../constants/recordingGuide';
 import { useTranslation } from '../hooks/useTranslation';
 import { translateContent } from '../services/geminiService';
 
@@ -48,7 +49,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
                 const baseText = recordingMode === 'quality' ? SAMPLE_TEXTS.quality : SAMPLE_TEXTS.quick;
                 const translated = await translateContent(baseText, targetLanguage);
                 setDynamicSampleText(translated);
-            } catch (e) {
+            } catch {
                 setDynamicSampleText(recordingMode === 'quality' ? SAMPLE_TEXTS.quality : SAMPLE_TEXTS.quick);
             } finally {
                 setIsTranslatingSample(false);

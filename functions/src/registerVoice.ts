@@ -66,8 +66,9 @@ export const registerVoice = onRequest({ secrets: [apiKey], cors: true }, async 
 
         res.status(200).json({ success: true, voiceId, status: 'processing' });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
         console.error('[RegisterVoice] Error:', error);
-        res.status(500).json({ error: error.message || 'Internal Server Error' });
+        res.status(500).json({ error: errorMessage });
     }
 });

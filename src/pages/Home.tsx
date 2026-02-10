@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Sparkles, BookOpen, Feather, Star, Music } from 'lucide-react';
@@ -37,8 +37,13 @@ export const Home: React.FC = () => {
         t('squirrel_home_3'),
     ];
 
-    const [owlMsgIndex] = useState(Math.floor(Math.random() * 3));
-    const [squirrelMsgIndex] = useState(Math.floor(Math.random() * 3));
+    const [owlMsgIndex, setOwlMsgIndex] = useState(0);
+    const [squirrelMsgIndex, setSquirrelMsgIndex] = useState(0);
+
+    useEffect(() => {
+        setOwlMsgIndex(Math.floor(Math.random() * 3));
+        setSquirrelMsgIndex(Math.floor(Math.random() * 3));
+    }, []);
 
     return (
         <div className="min-h-screen flex flex-col relative overflow-hidden bg-gradient-to-b from-amber-50 via-green-50 to-emerald-100">
@@ -79,27 +84,34 @@ export const Home: React.FC = () => {
                 ))}
 
                 {/* Sparkles */}
-                {[...Array(12)].map((_, i) => (
-                    <motion.div
-                        key={`sparkle-${i}`}
-                        className="absolute text-amber-400"
-                        style={{
-                            left: `${5 + Math.random() * 90}%`,
-                            top: `${5 + Math.random() * 90}%`,
-                        }}
-                        animate={{
-                            opacity: [0, 1, 0],
-                            scale: [0.5, 1.3, 0.5],
-                        }}
-                        transition={{
-                            duration: 2.5,
-                            repeat: Infinity,
-                            delay: i * 0.3,
-                        }}
-                    >
-                        <Sparkles size={16 + Math.random() * 10} />
-                    </motion.div>
-                ))}
+                {useMemo(() => {
+                    return [...Array(12)].map((_, i) => {
+                        const left = 5 + Math.random() * 90;
+                        const top = 5 + Math.random() * 90;
+                        const size = 16 + Math.random() * 10;
+                        return (
+                            <motion.div
+                                key={`sparkle-${i}`}
+                                className="absolute text-amber-400"
+                                style={{
+                                    left: `${left}%`,
+                                    top: `${top}%`,
+                                }}
+                                animate={{
+                                    opacity: [0, 1, 0],
+                                    scale: [0.5, 1.3, 0.5],
+                                }}
+                                transition={{
+                                    duration: 2.5,
+                                    repeat: Infinity,
+                                    delay: i * 0.3,
+                                }}
+                            >
+                                <Sparkles size={size} />
+                            </motion.div>
+                        );
+                    });
+                }, [])}
             </div>
 
             {/* Header */}
@@ -157,24 +169,29 @@ export const Home: React.FC = () => {
                     <div className="absolute inset-0">
                         {/* Magic particles when hovered */}
                         <AnimatePresence>
-                            {hoveredSection === 'owl' && [...Array(8)].map((_, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, scale: 0 }}
-                                    animate={{
-                                        opacity: [0, 1, 0],
-                                        scale: [0, 1, 0],
-                                        y: [0, -50 - Math.random() * 100],
-                                        x: Math.random() * 100 - 50,
-                                    }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 1.5, delay: i * 0.15 }}
-                                    className="absolute text-amber-400"
-                                    style={{ bottom: '30%', left: `${40 + Math.random() * 20}%` }}
-                                >
-                                    <Star size={16} fill="currentColor" />
-                                </motion.div>
-                            ))}
+                            {hoveredSection === 'owl' && [...Array(8)].map((_, i) => {
+                                const yOffset = -50 - Math.random() * 100;
+                                const xOffset = Math.random() * 100 - 50;
+                                const leftPos = 40 + Math.random() * 20;
+                                return (
+                                    <motion.div
+                                        key={i}
+                                        initial={{ opacity: 0, scale: 0 }}
+                                        animate={{
+                                            opacity: [0, 1, 0],
+                                            scale: [0, 1, 0],
+                                            y: [0, yOffset],
+                                            x: xOffset,
+                                        }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 1.5, delay: i * 0.15 }}
+                                        className="absolute text-amber-400"
+                                        style={{ bottom: '30%', left: `${leftPos}%` }}
+                                    >
+                                        <Star size={16} fill="currentColor" />
+                                    </motion.div>
+                                );
+                            })}
                         </AnimatePresence>
                     </div>
 
@@ -283,28 +300,34 @@ export const Home: React.FC = () => {
                     <div className="absolute inset-0">
                         {/* Magic stars when hovered */}
                         <AnimatePresence>
-                            {hoveredSection === 'squirrel' && [...Array(10)].map((_, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, scale: 0 }}
-                                    animate={{
-                                        opacity: [0, 1, 0],
-                                        scale: [0, 1.2, 0],
-                                        y: [0, -80 - Math.random() * 60],
-                                        x: Math.random() * 120 - 60,
-                                    }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 1.2, delay: i * 0.1 }}
-                                    className="absolute"
-                                    style={{
-                                        bottom: '35%',
-                                        left: `${35 + Math.random() * 30}%`,
-                                        color: ['#facc15', '#f472b6', '#60a5fa', '#34d399'][i % 4]
-                                    }}
-                                >
-                                    <Star size={14} fill="currentColor" />
-                                </motion.div>
-                            ))}
+                            {hoveredSection === 'squirrel' && [...Array(10)].map((_, i) => {
+                                const yOffset = -80 - Math.random() * 60;
+                                const xOffset = Math.random() * 120 - 60;
+                                const leftPos = 35 + Math.random() * 30;
+                                const color = ['#facc15', '#f472b6', '#60a5fa', '#34d399'][i % 4];
+                                return (
+                                    <motion.div
+                                        key={i}
+                                        initial={{ opacity: 0, scale: 0 }}
+                                        animate={{
+                                            opacity: [0, 1, 0],
+                                            scale: [0, 1.2, 0],
+                                            y: [0, yOffset],
+                                            x: xOffset,
+                                        }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 1.2, delay: i * 0.1 }}
+                                        className="absolute"
+                                        style={{
+                                            bottom: '35%',
+                                            left: `${leftPos}%`,
+                                            color
+                                        }}
+                                    >
+                                        <Star size={14} fill="currentColor" />
+                                    </motion.div>
+                                );
+                            })}
                         </AnimatePresence>
                     </div>
 

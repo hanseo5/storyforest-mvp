@@ -33,7 +33,7 @@ export const StoryEditor: React.FC = () => {
     const location = useLocation();
     const { user } = useStore();
     const state = location.state as {
-        metadata?: any;
+        metadata?: { title: string; prompt?: string; characters: Character[]; style: string; pages: number };
         prompt?: string;
         existingDraft?: DraftBook;
         protagonistImage?: string | null;
@@ -86,7 +86,7 @@ export const StoryEditor: React.FC = () => {
                         state.metadata.style,
                         state.metadata.pages
                     );
-                    setPages(aiPages.map((p: any) => ({
+                    setPages(aiPages.map((p: { pageNumber: number; text: string }) => ({
                         pageNumber: p.pageNumber,
                         text: p.text,
                         imageUrl: null

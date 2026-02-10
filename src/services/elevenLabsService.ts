@@ -1,5 +1,4 @@
-const API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
-const BASE_URL = 'https://api.elevenlabs.io/v1';
+import { addVoiceSecure, generateSpeechSecure, deleteVoiceSecure } from './cloudFunctionsService';
 
 // Voice IDs
 export const VOICES = {
@@ -14,39 +13,9 @@ export const VOICES = {
 
 // Default to Brian for deep, resonant voice
 export const generateSpeech = async (text: string, voiceId: string = VOICES.BRIAN): Promise<string> => {
-    if (!API_KEY) {
-        console.warn('[ElevenLabs] API Key is missing');
-        throw new Error('ElevenLabs API Key is missing. Please check your .env file.');
-    }
-
     try {
         console.log('[ElevenLabs] Generating speech for:', text.substring(0, 20) + '...');
-        const response = await fetch(`${BASE_URL}/text-to-speech/${voiceId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'xi-api-key': API_KEY,
-            },
-            body: JSON.stringify({
-                text,
-                model_id: 'eleven_multilingual_v2', // Better for Korean and other languages
-                voice_settings: {
-                    stability: 0.55, // Slightly more stable for deep voice
-                    similarity_boost: 0.8,
-                    style: 0.2, // Subtle emotion
-                    use_speaker_boost: true
-                },
-            }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: { message: response.statusText } }));
-            throw new Error(errorData.detail?.message || 'Failed to generate speech');
-        }
-
-        const audioBlob = await response.blob();
-        return URL.createObjectURL(audioBlob);
-
+        return await generateSpeechSecure(text, voiceId);
     } catch (error) {
         console.error('[ElevenLabs] Error:', error);
         throw error;
@@ -54,60 +23,50 @@ export const generateSpeech = async (text: string, voiceId: string = VOICES.BRIA
 };
 
 export const generateSpeechBlob = async (text: string, voiceId: string = VOICES.ANTONI): Promise<Blob> => {
-    if (!API_KEY) throw new Error('ElevenLabs API Key is missing');
-
-    const response = await fetch(`${BASE_URL}/text-to-speech/${voiceId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'xi-api-key': API_KEY },
-        body: JSON.stringify({
-            text,
-            model_id: 'eleven_multilingual_v2',
-            voice_settings: { stability: 0.55, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true },
-        }),
-    });
-
-    if (!response.ok) throw new Error('Failed to generate speech');
-    return await response.blob();
+    try {
+        const base64Audio = await generateSpeechSecure(text, voiceId);
+        // Extract base64 from data URL
+        const base64Data = base64Audio.split(',')[1];
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return new Blob([bytes], { type: 'audio/mpeg' });
+    } catch (error) {
+        console.error('[ElevenLabs] Error generating speech blob:', error);
+        throw error;
+    }
 };
 
 // Add Voice (Instant Clone) - Supports multiple audio samples for better quality
 export const addVoice = async (name: string, audioBlobs: Blob | Blob[]): Promise<string> => {
-    if (!API_KEY) throw new Error('API Key missing');
+    try {
+        // Convert first blob to base64
+        const blobs = Array.isArray(audioBlobs) ? audioBlobs : [audioBlobs];
+        const firstBlob = blobs[0];
+        
+        const arrayBuffer = await firstBlob.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binaryString = '';
+        for (let i = 0; i < bytes.length; i++) {
+            binaryString += String.fromCharCode(bytes[i]);
+        }
+        const audioBase64 = btoa(binaryString);
 
-    const formData = new FormData();
-    formData.append('name', name);
-
-    // Support both single blob and array of blobs
-    const blobs = Array.isArray(audioBlobs) ? audioBlobs : [audioBlobs];
-    blobs.forEach((blob, index) => {
-        formData.append('files', blob, `sample_${index + 1}.webm`);
-    });
-
-    formData.append('description', 'Storyforest Voice Clone');
-
-    const response = await fetch(`${BASE_URL}/voices/add`, {
-        method: 'POST',
-        headers: { 'xi-api-key': API_KEY }, // Content-Type is auto-set by FormData
-        body: formData,
-    });
-
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail?.message || 'Failed to add voice');
+        return await addVoiceSecure(name, audioBase64, 'Storyforest Voice Clone');
+    } catch (error) {
+        console.error('[ElevenLabs] Error adding voice:', error);
+        throw error;
     }
-
-    const data = await response.json();
-    return data.voice_id;
 };
 
 // Delete Voice
 export const deleteVoice = async (voiceId: string): Promise<void> => {
-    if (!API_KEY) throw new Error('API Key missing');
-
-    const response = await fetch(`${BASE_URL}/voices/${voiceId}`, {
-        method: 'DELETE',
-        headers: { 'xi-api-key': API_KEY },
-    });
-
-    if (!response.ok) throw new Error('Failed to delete voice');
+    try {
+        await deleteVoiceSecure(voiceId);
+    } catch (error) {
+        console.error('[ElevenLabs] Error deleting voice:', error);
+        throw error;
+    }
 };
