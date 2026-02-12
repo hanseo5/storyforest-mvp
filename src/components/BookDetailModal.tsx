@@ -7,6 +7,7 @@ import { useStore } from '../store';
 import type { Book, Page } from '../types';
 import { useTranslation } from '../hooks/useTranslation';
 import { detectLanguage, cleanTranslatedText } from '../utils/textUtils';
+import { trackBookRead } from '../services/analyticsService';
 
 interface BookDetailModalProps {
     book: Book | null;
