@@ -70,5 +70,11 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false;
     }
+
+    // ── Story generations: read own, write from Cloud Functions only ──
+    match /story_generations/{genId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only written by admin SDK (Cloud Functions)
+    }
   }
 }

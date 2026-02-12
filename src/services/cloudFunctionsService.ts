@@ -4,7 +4,8 @@
  */
 
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../lib/firebase';
+import { doc, onSnapshot, deleteDoc } from 'firebase/firestore';
+import { functions, db } from '../lib/firebase';
 
 /**
  * Generic Gemini proxy — send any prompt securely through Cloud Functions.
@@ -47,6 +48,7 @@ export interface StoryVariables {
     customMessage?: string;
     targetLanguage: string;
     artStyle?: string;
+    generationId?: string;
 }
 
 export interface PhotoStoryVariables extends StoryVariables {
@@ -54,6 +56,9 @@ export interface PhotoStoryVariables extends StoryVariables {
     photoMimeType?: string;
     photoDescription?: string;
 }
+
+// Key for persisting pending generation in localStorage
+const PENDING_GENERATION_KEY = 'pendingStoryGeneration';
 
 export interface GeneratedPage {
     pageNumber: number;
@@ -213,5 +218,97 @@ export const deleteVoiceSecure = async (voiceId: string): Promise<void> => {
     } catch (error: unknown) {
         console.error('[CloudFunctions] Error calling deleteVoiceFunction:', error);
         throw error;
+    }
+};
+
+// ==================== Background Story Generation ====================
+
+/**
+ * Generate a unique generation ID
+ */
+export const createGenerationId = (): string => {
+    return `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+};
+
+/**
+ * Save pending generation info to localStorage
+ * This allows the app to recover if the page is refreshed or comes back from background
+ */
+export const savePendingGeneration = (generationId: string, variables: StoryVariables) => {
+    try {
+        localStorage.setItem(PENDING_GENERATION_KEY, JSON.stringify({
+            generationId,
+            variables,
+            startedAt: Date.now(),
+        }));
+    } catch (e) {
+        console.warn('[CloudFunctions] Failed to save pending generation:', e);
+    }
+};
+
+/**
+ * Get pending generation from localStorage (if any)
+ */
+export const getPendingGeneration = (): { generationId: string; variables: StoryVariables; startedAt: number } | null => {
+    try {
+        const raw = localStorage.getItem(PENDING_GENERATION_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        // Expire after 15 minutes
+        if (Date.now() - data.startedAt > 15 * 60 * 1000) {
+            localStorage.removeItem(PENDING_GENERATION_KEY);
+            return null;
+        }
+        return data;
+    } catch {
+        return null;
+    }
+};
+
+/**
+ * Clear pending generation from localStorage
+ */
+export const clearPendingGeneration = () => {
+    localStorage.removeItem(PENDING_GENERATION_KEY);
+};
+
+/**
+ * Listen to Firestore for generation progress/completion.
+ * Returns an unsubscribe function.
+ */
+export interface GenerationProgress {
+    status: 'generating' | 'completed' | 'error';
+    phase: 'text' | 'images' | 'complete';
+    currentPage?: number;
+    totalPages?: number;
+    result?: GeneratedStory;
+    error?: string;
+}
+
+export const listenToGeneration = (
+    generationId: string,
+    onUpdate: (progress: GenerationProgress) => void
+): (() => void) => {
+    const docRef = doc(db, 'story_generations', generationId);
+    const unsubscribe = onSnapshot(docRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.data() as GenerationProgress;
+            onUpdate(data);
+        }
+    }, (error) => {
+        console.error('[CloudFunctions] Firestore listener error:', error);
+    });
+    return unsubscribe;
+};
+
+/**
+ * Clean up the generation document from Firestore
+ */
+export const cleanupGeneration = async (generationId: string) => {
+    try {
+        const docRef = doc(db, 'story_generations', generationId);
+        await deleteDoc(docRef);
+    } catch {
+        // Ignore — user may not have delete permission (CF owns these docs)
     }
 };

@@ -1,9 +1,18 @@
 /* eslint-disable react-hooks/rules-of-hooks -- Math.random for animation initial positions is acceptable */
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, BookOpen, Image as ImageIcon, Feather, Star, Palette } from 'lucide-react';
 import { generateCompleteStory, generatePhotoBasedStory } from '../services/geminiService';
+import {
+    createGenerationId,
+    savePendingGeneration,
+    getPendingGeneration,
+    clearPendingGeneration,
+    listenToGeneration,
+    type GenerationProgress,
+    type GeneratedStory,
+} from '../services/cloudFunctionsService';
 import type { StoryVariables } from '../types/draft';
 import owlImage from '../assets/mascots/owl.png';
 import { useTranslation } from '../hooks/useTranslation';
@@ -49,6 +58,9 @@ export const StoryGenerating: React.FC = () => {
     const [owlMessageKey, setOwlMessageKey] = useState(OWL_MESSAGE_KEYS.text[0]);
 
     const isGenerating = useRef(false);
+    const generationIdRef = useRef<string | null>(null);
+    const unsubscribeRef = useRef<(() => void) | null>(null);
+    const httpCompletedRef = useRef(false);
 
     // Pre-compute sparkle stars for complete phase (must be called unconditionally)
     const completeSparkles = useMemo(() => {
@@ -73,8 +85,80 @@ export const StoryGenerating: React.FC = () => {
         return () => clearInterval(interval);
     }, [phase]);
 
+    // Navigate to preview with the generated story
+    const navigateToPreview = useCallback((story: GeneratedStory, variables: StoryVariables) => {
+        clearPendingGeneration();
+        if (unsubscribeRef.current) {
+            unsubscribeRef.current();
+            unsubscribeRef.current = null;
+        }
+        setPhase('complete');
+        setProgress(100);
+        setStatusMessage(t('gen_complete'));
+        setTimeout(() => {
+            navigate('/preview', { state: { story, variables } });
+        }, 800);
+    }, [navigate, t]);
+
+    // Set up Firestore listener for background recovery
+    const setupFirestoreListener = useCallback((genId: string, variables: StoryVariables) => {
+        if (unsubscribeRef.current) unsubscribeRef.current();
+
+        unsubscribeRef.current = listenToGeneration(genId, (progress: GenerationProgress) => {
+            // Don't override if HTTP already completed
+            if (httpCompletedRef.current) return;
+
+            if (progress.phase === 'text') {
+                setPhase('text');
+                setProgress(20);
+                setStatusMessage(t('gen_writing_story'));
+            } else if (progress.phase === 'images' && progress.totalPages) {
+                setPhase('images');
+                const current = progress.currentPage || 0;
+                const total = progress.totalPages;
+                setPageProgress({ current, total });
+                setProgress(Math.round((current / total) * 100));
+                setStatusMessage(t('gen_drawing_images', { current: String(current), total: String(total) }));
+            }
+
+            if (progress.status === 'completed' && progress.result) {
+                console.log('[StoryGenerating] Completed via Firestore listener');
+                navigateToPreview(progress.result, variables);
+            } else if (progress.status === 'error') {
+                console.error('[StoryGenerating] Error from Firestore:', progress.error);
+                clearPendingGeneration();
+                alert(t('error'));
+                navigate('/create');
+            }
+        });
+    }, [navigate, navigateToPreview, t]);
+
+    // Handle visibility change (app comes back from background)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && generationIdRef.current) {
+                console.log('[StoryGenerating] App resumed, checking Firestore for result...');
+                // Firestore listener auto-reconnects, but ensure it's active
+                const pending = getPendingGeneration();
+                if (pending && !unsubscribeRef.current) {
+                    setupFirestoreListener(pending.generationId, pending.variables);
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [setupFirestoreListener]);
+
     useEffect(() => {
         if (!state?.variables) {
+            // Check for pending generation from background
+            const pending = getPendingGeneration();
+            if (pending) {
+                console.log('[StoryGenerating] Found pending generation:', pending.generationId);
+                generationIdRef.current = pending.generationId;
+                setupFirestoreListener(pending.generationId, pending.variables);
+                return;
+            }
             navigate('/create');
             return;
         }
@@ -84,6 +168,14 @@ export const StoryGenerating: React.FC = () => {
 
         const generate = async () => {
             try {
+                // Create a unique generation ID for background recovery
+                const genId = createGenerationId();
+                generationIdRef.current = genId;
+                savePendingGeneration(genId, state.variables);
+
+                // Set up Firestore listener as backup
+                setupFirestoreListener(genId, state.variables);
+
                 // Phase 1: Generate story text
                 setPhase('text');
                 setStatusMessage(t('gen_creating_story', { name: state.variables.childName }));
@@ -99,6 +191,7 @@ export const StoryGenerating: React.FC = () => {
                             photoBase64: state.photoBase64,
                             photoMimeType: state.photoMimeType,
                             photoDescription: state.photoDescription,
+                            generationId: genId,
                         },
                         (pageNum, total, imageProgress) => {
                             if (imageProgress !== undefined) {
@@ -115,7 +208,7 @@ export const StoryGenerating: React.FC = () => {
                 } else {
                     // Standard story generation
                     story = await generateCompleteStory(
-                        { ...state.variables, targetLanguage: targetLanguage || 'English' },
+                        { ...state.variables, targetLanguage: targetLanguage || 'English', generationId: genId },
                         (pageNum, total, imageProgress) => {
                             if (imageProgress !== undefined) {
                                 setPhase('images');
@@ -130,29 +223,44 @@ export const StoryGenerating: React.FC = () => {
                     );
                 }
 
-                setPhase('complete');
-                setProgress(100);
-                setStatusMessage(t('gen_complete'));
-
-                // Navigate to preview
-                setTimeout(() => {
-                    navigate('/preview', {
-                        state: {
-                            story,
-                            variables: state.variables
-                        }
-                    });
-                }, 800);
+                // HTTP call succeeded — mark as completed
+                httpCompletedRef.current = true;
+                navigateToPreview(story, state.variables);
 
             } catch (error) {
-                console.error('[StoryGenerating] Error:', error);
-                alert(t('error')); // Creating a basic alert using existing error key or fallback
-                navigate('/create');
+                console.error('[StoryGenerating] HTTP call error:', error);
+                // Don't fail immediately — the CF may still be running in the background
+                // Check if Firestore listener already saw the result
+                if (!httpCompletedRef.current && generationIdRef.current) {
+                    console.log('[StoryGenerating] HTTP lost, waiting for Firestore result...');
+                    setStatusMessage(t('gen_writing_story'));
+                    // Firestore listener is already active, just wait
+                    // Set a 10 minute timeout as last resort
+                    setTimeout(() => {
+                        if (!httpCompletedRef.current) {
+                            console.error('[StoryGenerating] Timeout waiting for background result');
+                            clearPendingGeneration();
+                            alert(t('error'));
+                            navigate('/create');
+                        }
+                    }, 10 * 60 * 1000);
+                } else {
+                    clearPendingGeneration();
+                    alert(t('error'));
+                    navigate('/create');
+                }
             }
         };
 
         generate();
-    }, [state, navigate, t]);
+
+        return () => {
+            if (unsubscribeRef.current) {
+                unsubscribeRef.current();
+                unsubscribeRef.current = null;
+            }
+        };
+    }, [state, navigate, t, targetLanguage, setupFirestoreListener, navigateToPreview]);
 
     if (!state?.variables) {
         return null;

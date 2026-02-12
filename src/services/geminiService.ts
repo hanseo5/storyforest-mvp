@@ -460,6 +460,7 @@ export const generateCompleteStory = async (
             customMessage: variables.customMessage,
             targetLanguage: variables.targetLanguage || 'English',
             artStyle: variables.artStyle,
+            generationId: variables.generationId,
         }, onProgress);
 
         return story;
@@ -536,6 +537,7 @@ export const generatePhotoBasedStory = async (
             photoBase64: variables.photoBase64,
             photoMimeType: variables.photoMimeType,
             photoDescription: variables.photoDescription,
+            generationId: variables.generationId,
         }, onProgress);
 
         return story;

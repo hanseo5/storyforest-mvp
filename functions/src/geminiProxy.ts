@@ -1,5 +1,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
+import * as admin from 'firebase-admin';
+
+const db = admin.firestore();
 
 // Define the secret for Gemini API key
 const geminiApiKey = defineSecret('GEMINI_API_KEY');
@@ -12,6 +15,7 @@ interface StoryVariables {
     customMessage?: string;
     targetLanguage: string;
     artStyle?: string;
+    generationId?: string;
 }
 
 interface GeneratedPage {
@@ -75,6 +79,7 @@ export const generateStory = onCall(
     },
     async (request: { data: StoryVariables }): Promise<GeneratedStory> => {
         const variables = request.data as StoryVariables;
+        const generationId = variables.generationId;
 
         if (!variables.childName || !variables.childAge) {
             throw new HttpsError('invalid-argument', 'Missing required fields: childName, childAge');
@@ -84,6 +89,15 @@ export const generateStory = onCall(
         if (!API_KEY) {
             throw new HttpsError('failed-precondition', 'Gemini API key not configured');
         }
+
+        // Helper to update Firestore progress (fire-and-forget)
+        const updateProgress = (data: Record<string, unknown>) => {
+            if (!generationId) return;
+            db.collection('story_generations').doc(generationId).set(data, { merge: true }).catch(() => {});
+        };
+
+        // Mark generation as started
+        updateProgress({ status: 'generating', phase: 'text', startedAt: admin.firestore.FieldValue.serverTimestamp() });
 
         const style = getArtStylePrompt(variables.artStyle);
 
@@ -212,11 +226,17 @@ Return format (JSON only, no markdown):
             const storyData = JSON.parse(jsonStr);
             console.log('[generateStory] Story generated:', storyData.title);
 
+            // Update progress: text done, starting images
+            updateProgress({ phase: 'images', totalPages: storyData.pages.length, currentPage: 0 });
+
             // Generate images for each page
             const generatedPages: GeneratedPage[] = [];
 
             for (let i = 0; i < storyData.pages.length; i++) {
                 const page = storyData.pages[i];
+
+                // Update image progress
+                updateProgress({ currentPage: i + 1 });
 
                 try {
                     const imagePrompt = `Children's picture book illustration, ${style}:
@@ -242,13 +262,24 @@ Style: Warm, inviting, child-friendly, full page illustration with no text`;
                 }
             }
 
-            return {
+            const result: GeneratedStory = {
                 title: storyData.title,
                 style,
                 pages: generatedPages,
             };
+
+            // Save completed result to Firestore
+            updateProgress({
+                status: 'completed',
+                phase: 'complete',
+                result,
+                completedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            return result;
         } catch (error) {
             console.error('[generateStory] Error:', error);
+            updateProgress({ status: 'error', error: String(error) });
             if (error instanceof HttpsError) throw error;
             throw new HttpsError('internal', 'Failed to generate story');
         }
@@ -347,6 +378,7 @@ interface PhotoStoryVariables {
     photoBase64?: string;
     photoMimeType?: string;
     photoDescription?: string;
+    generationId?: string;
 }
 
 export const generatePhotoStory = onCall(
@@ -359,6 +391,7 @@ export const generatePhotoStory = onCall(
     },
     async (request: { data: PhotoStoryVariables }): Promise<GeneratedStory> => {
         const variables = request.data as PhotoStoryVariables;
+        const generationId = variables.generationId;
         console.log('[generatePhotoStory] Called with:', {
             childName: variables.childName,
             childAge: variables.childAge,
@@ -369,6 +402,7 @@ export const generatePhotoStory = onCall(
             hasPhoto: !!(variables.photoBase64),
             photoMimeType: variables.photoMimeType,
             photoDescLength: variables.photoDescription?.length,
+            generationId,
         });
 
         if (!variables.childName || !variables.childAge) {
@@ -379,6 +413,15 @@ export const generatePhotoStory = onCall(
         if (!API_KEY) {
             throw new HttpsError('failed-precondition', 'Gemini API key not configured');
         }
+
+        // Helper to update Firestore progress (fire-and-forget)
+        const updateProgress = (data: Record<string, unknown>) => {
+            if (!generationId) return;
+            db.collection('story_generations').doc(generationId).set(data, { merge: true }).catch(() => {});
+        };
+
+        // Mark generation as started
+        updateProgress({ status: 'generating', phase: 'text', startedAt: admin.firestore.FieldValue.serverTimestamp() });
 
         const style = getArtStylePrompt(variables.artStyle);
         const targetLanguage = variables.targetLanguage || 'Korean';
@@ -474,12 +517,18 @@ export const generatePhotoStory = onCall(
             const storyData = JSON.parse(jsonStr);
             console.log('[generatePhotoStory] Story generated:', storyData.title);
 
+            // Update progress: text done, starting images
+            updateProgress({ phase: 'images', totalPages: storyData.pages.length, currentPage: 0 });
+
             // Generate images for each page
             const generatedPages: GeneratedPage[] = [];
             console.log(`[generatePhotoStory] Starting image generation for ${storyData.pages.length} pages`);
 
             for (let i = 0; i < storyData.pages.length; i++) {
                 const page = storyData.pages[i];
+
+                // Update image progress
+                updateProgress({ currentPage: i + 1 });
 
                 try {
                     console.log(`[generatePhotoStory] Generating image ${i + 1}/${storyData.pages.length}...`);
@@ -508,13 +557,24 @@ Style: Warm, inviting, child-friendly, full page illustration with no text`;
                 }
             }
 
-            return {
+            const result: GeneratedStory = {
                 title: storyData.title,
                 style,
                 pages: generatedPages,
             };
+
+            // Save completed result to Firestore
+            updateProgress({
+                status: 'completed',
+                phase: 'complete',
+                result,
+                completedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            return result;
         } catch (error: unknown) {
             const errMsg = error instanceof Error ? error.message : String(error);
+            updateProgress({ status: 'error', error: errMsg });
             const errStack = error instanceof Error ? error.stack : '';
             console.error('[generatePhotoStory] Error:', errMsg);
             console.error('[generatePhotoStory] Stack:', errStack);

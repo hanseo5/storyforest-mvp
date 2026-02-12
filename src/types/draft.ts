@@ -19,6 +19,7 @@ export interface StoryVariables {
     customMessage?: string;
     targetLanguage?: string;
     photoContext?: PhotoContext;
+    generationId?: string;
 }
 
 export interface DraftPage {

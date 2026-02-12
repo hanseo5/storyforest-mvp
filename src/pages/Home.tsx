@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Sparkles, BookOpen, Feather, Star, Music } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { useStore } from '../store';
+import { getPendingGeneration } from '../services/cloudFunctionsService';
 
 
 import { useTranslation } from '../hooks/useTranslation';
@@ -15,6 +16,15 @@ export const Home: React.FC = () => {
     const { user } = useStore();
     const { t } = useTranslation();
     const [hoveredSection, setHoveredSection] = useState<'owl' | 'squirrel' | null>(null);
+
+    // Check for pending story generation (from background)
+    useEffect(() => {
+        const pending = getPendingGeneration();
+        if (pending) {
+            console.log('[Home] Found pending generation, redirecting to /generating');
+            navigate('/generating');
+        }
+    }, [navigate]);
 
     const handleNavigate = (path: string) => {
         localStorage.setItem('storyforest_visited', 'true');
