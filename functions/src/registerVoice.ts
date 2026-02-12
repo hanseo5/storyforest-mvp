@@ -70,6 +70,14 @@ export const registerVoice = onCall(
                 throw new HttpsError('internal', 'Failed to trigger background generation');
             }
 
+            // 5. Clean up temp voice sample (non-critical)
+            try {
+                await file.delete();
+                console.log(`[RegisterVoice] Cleaned up temp sample: ${storagePath}`);
+            } catch (cleanupErr) {
+                console.warn('[RegisterVoice] Failed to clean up temp sample:', cleanupErr);
+            }
+
             return { success: true, voiceId, status: 'processing' };
 
         } catch (error: unknown) {

@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Voice samples (permanent): only the owner can read/write ──
+    match /voice_samples/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 10 * 1024 * 1024  // Max 10MB
+                   && request.resource.contentType.matches('audio/.*');
+    }
+
+    // ── Temp voice samples (for cloning): only the owner can write, CFs read via admin SDK ──
+    match /temp_voice_samples/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('audio/.*');
+    }
+
+    // ── User audio files (TTS output): only the owner can read, CFs write via admin SDK ──
+    match /user_audio/{userId}/{allPaths=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;  // Only Cloud Functions (admin SDK) write here
+    }
+
+    // ── Book assets (images, user recordings): authenticated can read, authenticated can write ──
+    // Book images are public to all authenticated users (shared books)
+    // User recordings are stored under books/{bookId}/pages/
+    match /books/{bookId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // ── Default: deny all other paths ──
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
