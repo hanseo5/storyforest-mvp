@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Mic, Square, Check, ChevronRight, Play, Pause, RotateCcw } from 'lucide-react';
 import { addVoice } from '../services/elevenLabsService';
-import { saveVoice } from '../services/voiceService';
+import { saveVoice, uploadVoiceSample, setSelectedVoice } from '../services/voiceService';
 import { useStore } from '../store';
 import { RecordingQualityGuide } from './RecordingQualityGuide';
-import { SAMPLE_TEXTS, getRecommendedTime } from '../constants/recordingGuide';
+import { LOCALIZED_SAMPLE_TEXTS, getRecommendedTime } from '../constants/recordingGuide';
 import { useTranslation } from '../hooks/useTranslation';
-import { translateContent } from '../services/geminiService';
 
 interface VoiceRecordModalProps {
     onClose: () => void;
@@ -20,8 +19,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
     const [voiceName, setVoiceName] = useState('');
     const [processStatus, setProcessStatus] = useState('');
     const [recordingMode, setRecordingMode] = useState<'quick' | 'quality'>('quick');
-    const [dynamicSampleText, setDynamicSampleText] = useState('');
-    const [isTranslatingSample, setIsTranslatingSample] = useState(false);
+    const [activeSentenceIndex, setActiveSentenceIndex] = useState(0);
 
     // Recording
     const [isRecording, setIsRecording] = useState(false);
@@ -37,26 +35,27 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
 
     const recommendedTime = getRecommendedTime(recordingMode);
 
-    useEffect(() => {
-        const translateSample = async () => {
-            if (targetLanguage === 'Original') {
-                setDynamicSampleText(recordingMode === 'quality' ? SAMPLE_TEXTS.quality : SAMPLE_TEXTS.quick);
-                return;
-            }
+    // Get localized sentences for current language and mode
+    const lang = targetLanguage || 'English';
+    const localizedTexts = LOCALIZED_SAMPLE_TEXTS[lang] || LOCALIZED_SAMPLE_TEXTS['English'];
+    const sentences = recordingMode === 'quality' ? localizedTexts.quality : localizedTexts.quick;
 
-            setIsTranslatingSample(true);
-            try {
-                const baseText = recordingMode === 'quality' ? SAMPLE_TEXTS.quality : SAMPLE_TEXTS.quick;
-                const translated = await translateContent(baseText, targetLanguage);
-                setDynamicSampleText(translated);
-            } catch {
-                setDynamicSampleText(recordingMode === 'quality' ? SAMPLE_TEXTS.quality : SAMPLE_TEXTS.quick);
-            } finally {
-                setIsTranslatingSample(false);
-            }
-        };
-        translateSample();
-    }, [targetLanguage, recordingMode]);
+    // Cycle through sentences while recording
+    useEffect(() => {
+        if (!isRecording) return;
+        const interval = setInterval(() => {
+            setActiveSentenceIndex(prev => {
+                if (prev < sentences.length - 1) return prev + 1;
+                return prev;
+            });
+        }, recordingMode === 'quality' ? 12000 : 8000);
+        return () => clearInterval(interval);
+    }, [isRecording, sentences.length, recordingMode]);
+
+    // Reset active sentence when mode changes
+    useEffect(() => {
+        setActiveSentenceIndex(0);
+    }, [recordingMode]);
 
     useEffect(() => {
         return () => {
@@ -164,10 +163,16 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
             setProcessStatus(t('processing'));
             const voiceId = await addVoice(voiceName.trim(), recordedBlob);
 
-            // Step 2: Save voice info to Firestore
-            await saveVoice(user.uid, voiceId, voiceName.trim());
+            // Step 2: Store voice sample permanently in Firebase Storage
+            const sampleStoragePath = await uploadVoiceSample(user.uid, voiceId, recordedBlob);
 
-            // Step 3: Add to background task queue for generation
+            // Step 3: Save voice info to Firestore (with sample path)
+            await saveVoice(user.uid, voiceId, voiceName.trim(), undefined, sampleStoragePath);
+
+            // Step 4: Auto-select this voice for the user
+            await setSelectedVoice(user.uid, voiceId);
+
+            // Step 5: Add to background task queue for generation of ALL existing books
             useStore.getState().addBackgroundTask({
                 voiceId,
                 type: 'all'
@@ -189,11 +194,11 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
         if (recordingTime < min) {
             return { color: 'text-yellow-500', message: t('min_recording_required', { time: formatTime(min) }) };
         } else if (recordingTime >= min && recordingTime < recommended) {
-            return { color: 'text-blue-500', message: 'Good! Just a bit more' };
+            return { color: 'text-blue-500', message: t('rec_good_bit_more') };
         } else if (recordingTime >= recommended && recordingTime <= max) {
-            return { color: 'text-green-500', message: "Perfect! You can stop anytime" };
+            return { color: 'text-green-500', message: t('rec_perfect_stop') };
         } else {
-            return { color: 'text-green-500', message: "That's enough! Please stop recording" };
+            return { color: 'text-green-500', message: t('rec_enough_stop') };
         }
     };
 
@@ -242,14 +247,44 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
                     {/* Step: Record */}
                     {step === 'record' && (
                         <div className="space-y-5">
-                            {/* Sample Text */}
-                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 max-h-48 overflow-y-auto">
-                                <p className="text-purple-900 font-medium mb-2 text-xs uppercase tracking-widest">
-                                    {t('please_read_below')}
-                                </p>
-                                <p className={`text-gray-700 leading-relaxed text-sm whitespace-pre-line ${isTranslatingSample ? 'opacity-50 animate-pulse' : ''}`}>
-                                    {isTranslatingSample ? t('translating') : dynamicSampleText}
-                                </p>
+                            {/* Sample Text - Sentence by Sentence */}
+                            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border border-purple-100 overflow-hidden">
+                                <div className="px-4 pt-3 pb-2 border-b border-purple-100/60">
+                                    <p className="text-purple-600 font-semibold text-xs tracking-wide flex items-center gap-1.5">
+                                        📖 {t('please_read_below')}
+                                    </p>
+                                </div>
+                                <div className="p-4 max-h-52 overflow-y-auto space-y-2">
+                                    {sentences.map((sentence, index) => (
+                                        <div
+                                            key={index}
+                                            className={`flex items-start gap-3 px-3 py-2.5 rounded-xl transition-all duration-500 ${
+                                                index === activeSentenceIndex
+                                                    ? 'bg-white shadow-sm border border-purple-200 scale-[1.01]'
+                                                    : index < activeSentenceIndex
+                                                    ? 'opacity-40'
+                                                    : 'opacity-70'
+                                            }`}
+                                        >
+                                            <span className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 ${
+                                                index === activeSentenceIndex
+                                                    ? 'bg-purple-500 text-white shadow-md'
+                                                    : index < activeSentenceIndex
+                                                    ? 'bg-green-100 text-green-600'
+                                                    : 'bg-gray-100 text-gray-400'
+                                            }`}>
+                                                {index < activeSentenceIndex ? '✓' : index + 1}
+                                            </span>
+                                            <p className={`text-sm leading-relaxed ${
+                                                index === activeSentenceIndex
+                                                    ? 'text-gray-800 font-medium'
+                                                    : 'text-gray-500'
+                                            }`}>
+                                                {sentence}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Recording Controls */}
@@ -283,9 +318,9 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
                                             />
                                         </div>
                                         <div className="flex justify-between text-xs text-gray-400 mt-1">
-                                            <span>Min</span>
-                                            <span>Rec.</span>
-                                            <span>Max</span>
+                                            <span>{t('rec_min')}</span>
+                                            <span>{t('rec_recommended')}</span>
+                                            <span>{t('rec_max')}</span>
                                         </div>
                                     </div>
                                 )}
@@ -338,7 +373,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
 
                                         {/* Recording Info */}
                                         <div className="text-center text-sm text-gray-500">
-                                            Rec Time: {formatTime(recordingTime)}
+                                            {t('rec_time')}: {formatTime(recordingTime)}
                                             {recordingTime >= recommendedTime.min && (
                                                 <span className="ml-2 text-green-500">✓ {t('confirm')}</span>
                                             )}
@@ -368,15 +403,15 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
                     {step === 'name' && (
                         <div className="space-y-6">
                             <div className="text-center">
-                                <h3 className="text-xl font-bold text-gray-800 mb-2">Name your voice</h3>
-                                <p className="text-gray-500 text-sm">Give it a name so you can find it later</p>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">{t('name_your_voice')}</h3>
+                                <p className="text-gray-500 text-sm">{t('name_your_voice_desc')}</p>
                             </div>
 
                             <input
                                 type="text"
                                 value={voiceName}
                                 onChange={(e) => setVoiceName(e.target.value)}
-                                placeholder="e.g., Mom's Voice, Dad's Storytime"
+                                placeholder={t('name_your_voice_placeholder')}
                                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-lg"
                                 autoFocus
                             />
@@ -425,7 +460,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({ onClose, onS
                             <p className="text-gray-600 text-sm">
                                 {t('voice_analysis_complete')}<br />
                                 <strong>{t('background_generation')}</strong><br />
-                                You'll be able to read with your voice shortly!
+                                {t('voice_ready_soon')}
                             </p>
                             <button
                                 onClick={onSuccess}

@@ -1,8 +1,74 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    // ── Users: only the owner can read/write their profile ──
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Books: all authenticated users can read, only author can write ──
+    match /books/{bookId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if request.auth != null
+                            && resource.data.authorId == request.auth.uid;
+
+      // Pages subcollection
+      match /pages/{pageId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null
+                     && get(/databases/$(database)/documents/books/$(bookId)).data.authorId == request.auth.uid;
+      }
+
+      // Translations: any authenticated user can cache translations
+      match /translations/{langId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // ── Drafts: only the author can CRUD ──
+    match /drafts/{draftId} {
+      allow read: if request.auth != null
+                  && resource.data.authorId == request.auth.uid;
+      allow create: if request.auth != null
+                    && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if request.auth != null
+                            && resource.data.authorId == request.auth.uid;
+
+      match /pages/{pageId} {
+        allow read, write: if request.auth != null
+                           && get(/databases/$(database)/documents/drafts/$(draftId)).data.authorId == request.auth.uid;
+      }
+    }
+
+    // ── Voices: only the owner ──
+    match /voices/{voiceId} {
+      allow read: if request.auth != null
+                  && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null
+                            && resource.data.userId == request.auth.uid;
+    }
+
+    // ── User audio files: read own only, write from Cloud Functions only ──
+    match /user_audio_files/{fileId} {
+      allow read: if request.auth != null
+                  && resource.data.userId == request.auth.uid;
+      allow write: if false; // Only written by admin SDK (Cloud Functions)
+    }
+
+    // ── User settings: only the owner ──
+    match /userSettings/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Config: read-only, write only from admin SDK (Cloud Functions) ──
+    match /config/{configId} {
+      allow read: if request.auth != null;
+      allow write: if false;
     }
   }
 }

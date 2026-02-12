@@ -34,6 +34,7 @@ export interface SavedVoice {
     createdAt: number;       // Timestamp
     userId: string;          // Owner
     sampleUrl?: string;      // URL to the original recording sample (for re-sync)
+    sampleStoragePath?: string; // Firebase Storage path to permanent voice sample
 }
 
 export interface Recording {

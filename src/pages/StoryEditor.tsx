@@ -3,9 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Plus, Trash2, Upload, Image as ImageIcon, Save, BookOpen, Sparkles, Wand2, Loader, ChevronDown, ChevronUp, Palette } from 'lucide-react';
 import { useStore } from '../store';
 import { saveDraft } from '../services/draftService';
-import { publishDraft } from '../services/bookService';
+import { publishDraft, updatePublishedBook } from '../services/bookService';
+import { queueAudioForNewBook } from '../services/voiceService';
 import { compressBase64Image, generateImage, ensureImageUrl } from '../services/imageService';
+import { ImagePromptModal } from '../components/ImagePromptModal';
 import { generateStoryPages, refineStoryText } from '../services/geminiService';
+import { useTranslation } from '../hooks/useTranslation';
+import { toast } from '../components/Toast';
 import type { DraftBook, DraftPage, Character } from '../types/draft';
 
 const SoftWatercolorImg = '/styles/soft_watercolor.png';
@@ -32,16 +36,22 @@ export const StoryEditor: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useStore();
+    const { t } = useTranslation();
     const state = location.state as {
         metadata?: { title: string; prompt?: string; characters: Character[]; style: string; pages: number };
         prompt?: string;
         existingDraft?: DraftBook;
         protagonistImage?: string | null;
+        editingBookId?: string;
     };
+
+    const editingBookId = state?.editingBookId || null;
+    const isEditing = !!editingBookId;
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
     const styleInputRef = useRef<HTMLInputElement>(null);
+    const [showImagePromptModal, setShowImagePromptModal] = useState(false);
 
     const [title, setTitle] = useState(state?.metadata?.title || state?.existingDraft?.title || '');
     const [style, setStyle] = useState(state?.metadata?.style || state?.existingDraft?.style || 'Soft Watercolor');
@@ -53,9 +63,12 @@ export const StoryEditor: React.FC = () => {
     const [currentPageIndex, setCurrentPageIndex] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
     const [generatingImages, setGeneratingImages] = useState<Record<number, boolean>>({});
     const [generatingCharacters, setGeneratingCharacters] = useState<Record<string, boolean>>({});
     const [customStyleImage, setCustomStyleImage] = useState<string | null>(state?.existingDraft?.styleImage || null);
+    const [generatingCoverImage, setGeneratingCoverImage] = useState(false);
+    const [showCoverImagePromptModal, setShowCoverImagePromptModal] = useState(false);
 
     // Slash command state
     const [slashCommandActive, setSlashCommandActive] = useState(false);
@@ -158,18 +171,29 @@ export const StoryEditor: React.FC = () => {
         }
     };
 
-    const handleGenerateImage = async (pageNumber: number, customPrompt?: string) => {
+    const handleGenerateImage = async (
+        pageNumber: number,
+        customPrompt?: string,
+        userPhotos?: Array<{ data: string; mimeType: string }>
+    ) => {
         const page = pages.find(p => p.pageNumber === pageNumber);
         if (!page) return;
 
         setGeneratingImages(prev => ({ ...prev, [pageNumber]: true }));
         try {
+            // Build the prompt: combine page text with user instructions
+            let prompt = page.text;
+            if (customPrompt) {
+                prompt = `${page.text}\n\n[USER INSTRUCTIONS]: ${customPrompt}`;
+            }
+
             const imageUrl = await generateImage(
-                customPrompt || page.text,
+                prompt,
                 style,
                 {
                     characters,
-                    styleImage: customStyleImage || undefined
+                    styleImage: customStyleImage || undefined,
+                    userPhotos: userPhotos || undefined
                 },
                 {
                     title,
@@ -186,7 +210,7 @@ export const StoryEditor: React.FC = () => {
             setPages(updatedPages);
         } catch (error) {
             console.error('[StoryEditor] Image generation failed:', error);
-            alert('Failed to generate image.');
+            toast.error(t('se_image_gen_failed'));
         } finally {
             setGeneratingImages(prev => ({ ...prev, [pageNumber]: false }));
         }
@@ -216,7 +240,7 @@ export const StoryEditor: React.FC = () => {
             handleUpdateCharacter(id, { imageUrl });
         } catch (error) {
             console.error('[StoryEditor] Character image generation failed:', error);
-            alert('Failed to generate character image.');
+            toast.error(t('se_char_image_failed'));
         } finally {
             setGeneratingCharacters(prev => ({ ...prev, [id]: false }));
         }
@@ -298,6 +322,44 @@ export const StoryEditor: React.FC = () => {
         event.target.value = '';
     };
 
+    const handleGenerateCoverImage = async (
+        customPrompt?: string,
+        userPhotos?: Array<{ data: string; mimeType: string }>
+    ) => {
+        setGeneratingCoverImage(true);
+        try {
+            const coverPrompt = customPrompt
+                ? `Book cover illustration for a children's storybook titled "${title}". ${customPrompt}`
+                : `Book cover illustration for a children's storybook titled "${title}". Create a captivating, eye-catching cover that represents the story. Include the main character prominently.`;
+
+            const imageUrl = await generateImage(
+                coverPrompt,
+                style,
+                {
+                    characters,
+                    styleImage: customStyleImage || undefined,
+                    userPhotos: userPhotos || undefined,
+                },
+                {
+                    title,
+                    pageNumber: 0,
+                    totalPages: pages.length,
+                    characterName: characters[0]?.name || 'the main character',
+                    previousTexts: [],
+                },
+                '3:4'
+            );
+
+            setCoverImage(imageUrl);
+            toast.success(t('se_cover_gen_success'));
+        } catch (error) {
+            console.error('[StoryEditor] Cover image generation failed:', error);
+            toast.error(t('se_cover_gen_failed'));
+        } finally {
+            setGeneratingCoverImage(false);
+        }
+    };
+
     const handleStyleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -319,13 +381,12 @@ export const StoryEditor: React.FC = () => {
 
     const handleSave = async () => {
         if (!user || !title) {
-            alert('Please enter a title');
+            toast.warning(t('se_enter_title'));
             return;
         }
 
         setIsSaving(true);
         try {
-            console.log('[StoryEditor] Starting deep save with image uploads...');
 
             // 1. Process Book-level images
             const uploadedCoverImage = await ensureImageUrl(coverImage, `drafts/${user.uid}/covers/${Date.now()}.jpg`);
@@ -367,11 +428,11 @@ export const StoryEditor: React.FC = () => {
             };
 
             await saveDraft(draft);
-            alert('Story saved as draft!');
+            toast.success(t('se_save_success'));
             navigate('/');
         } catch (error) {
             console.error('[StoryEditor] Save failed:', error);
-            alert('Failed to save. One or more images might be too large or Firebase Storage failed.');
+            toast.error(t('se_save_failed'));
         } finally {
             setIsSaving(false);
         }
@@ -379,23 +440,22 @@ export const StoryEditor: React.FC = () => {
 
     const handlePublish = async () => {
         if (!user || !title) {
-            alert('Please enter a title');
+            toast.warning(t('se_enter_title'));
             return;
         }
 
         const hasAllText = pages.every(p => p.text && p.text.trim().length > 0);
         if (!hasAllText) {
-            alert('All pages must have text before publishing');
+            toast.warning(t('se_all_text_required'));
             return;
         }
 
-        if (!confirm('Are you sure you want to publish this story? It will be available in the Library.')) {
+        if (!confirm(t('se_confirm_publish'))) {
             return;
         }
 
         setIsPublishing(true);
         try {
-            console.log('[StoryEditor] Starting deep publish with image uploads...');
 
             // 1. Process Book-level images (same as save)
             const uploadedCoverImage = await ensureImageUrl(coverImage, `drafts/${user.uid}/covers/${Date.now()}.jpg`);
@@ -432,14 +492,69 @@ export const StoryEditor: React.FC = () => {
             const draftId = await saveDraft(draft);
             draft.id = draftId;
 
-            await publishDraft(draft);
-            alert('Story published successfully! It is now available in the Library.');
+            const bookId = await publishDraft(draft);
+
+            // Auto-generate audio with user's selected cloned voice
+            await queueAudioForNewBook(user.uid, bookId);
+
+            toast.success(t('se_publish_success'));
             navigate('/library');
         } catch (error) {
             console.error('[StoryEditor] Publish failed:', error);
-            alert('Failed to publish. Please check your connection.');
+            toast.error(t('se_publish_failed'));
         } finally {
             setIsPublishing(false);
+        }
+    };
+
+    const handleUpdate = async () => {
+        if (!user || !title || !editingBookId) return;
+
+        const hasAllText = pages.every(p => p.text && p.text.trim().length > 0);
+        if (!hasAllText) {
+            toast.warning(t('se_all_text_required'));
+            return;
+        }
+
+        if (!confirm(t('se_confirm_update'))) return;
+
+        setIsUpdating(true);
+        try {
+            // Process images
+            const uploadedCoverImage = await ensureImageUrl(coverImage, `drafts/${user.uid}/covers/${Date.now()}.jpg`);
+            const uploadedCharacters = await Promise.all(characters.map(async (char) => ({
+                ...char,
+                imageUrl: await ensureImageUrl(char.imageUrl, `drafts/${user.uid}/characters/${char.id}_${Date.now()}.jpg`)
+            })));
+            const uploadedPages = await Promise.all(pages.map(async (p) => ({
+                ...p,
+                imageUrl: await ensureImageUrl(p.imageUrl, `drafts/${user.uid}/pages/page_${p.pageNumber}_${Date.now()}.jpg`),
+                imageStatus: (p.imageUrl || p.imageStatus === 'complete') ? 'complete' as const : 'pending' as const
+            })));
+
+            const draft: DraftBook = {
+                title,
+                authorId: user.uid,
+                protagonist: uploadedCharacters[0]?.name || 'the main character',
+                characters: uploadedCharacters.map(c => ({ ...c, imageUrl: c.imageUrl || undefined })),
+                protagonistImage: uploadedCoverImage || undefined,
+                style,
+                pageCount: pages.length,
+                prompt: state?.prompt || '',
+                status: 'editing',
+                createdAt: Date.now(),
+                pages: uploadedPages.map(p => ({ ...p, imageUrl: p.imageUrl || undefined }))
+            };
+
+            await updatePublishedBook(editingBookId, draft);
+
+            toast.success(t('se_update_success'));
+            navigate('/library');
+        } catch (error) {
+            console.error('[StoryEditor] Update failed:', error);
+            toast.error(t('se_update_failed'));
+        } finally {
+            setIsUpdating(false);
         }
     };
 
@@ -455,28 +570,41 @@ export const StoryEditor: React.FC = () => {
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-xl font-bold text-gray-800">✨ Story Studio</h1>
-                        <p className="text-sm text-gray-500">Unleash your imagination</p>
+                        <h1 className="text-xl font-bold text-gray-800">✨ {isEditing ? t('se_edit_mode') : t('se_story_studio')}</h1>
+                        <p className="text-sm text-gray-500">{isEditing ? t('se_edit_subtitle') : t('se_subtitle')}</p>
                     </div>
                 </div>
 
                 <div className="flex gap-3">
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving || isPublishing || !title}
-                        className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 disabled:opacity-50 flex items-center gap-2 border border-gray-200"
-                    >
-                        <Save className="w-4 h-4" />
-                        {isSaving ? 'Saving...' : 'Save Draft'}
-                    </button>
-                    <button
-                        onClick={handlePublish}
-                        disabled={isSaving || isPublishing || !title}
-                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
-                    >
-                        <BookOpen className="w-4 h-4" />
-                        {isPublishing ? 'Publishing...' : 'Publish'}
-                    </button>
+                    {!isEditing && (
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving || isPublishing || !title}
+                            className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 disabled:opacity-50 flex items-center gap-2 border border-gray-200"
+                        >
+                            <Save className="w-4 h-4" />
+                            {isSaving ? t('se_saving') : t('se_save_draft')}
+                        </button>
+                    )}
+                    {isEditing ? (
+                        <button
+                            onClick={handleUpdate}
+                            disabled={isUpdating || !title}
+                            className="px-6 py-2 bg-amber-500 text-white rounded-lg font-semibold hover:bg-amber-600 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <Save className="w-4 h-4" />
+                            {isUpdating ? t('se_updating') : t('se_update')}
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handlePublish}
+                            disabled={isSaving || isPublishing || !title}
+                            className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <BookOpen className="w-4 h-4" />
+                            {isPublishing ? t('se_publishing') : t('se_publish')}
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -489,7 +617,7 @@ export const StoryEditor: React.FC = () => {
                             onClick={() => toggleSection('title')}
                             className="w-full flex items-center justify-between mb-3 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
                         >
-                            Title
+                            {t('se_title_section')}
                             {expandedSections.title ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </button>
                         {expandedSections.title && (
@@ -498,7 +626,7 @@ export const StoryEditor: React.FC = () => {
                                     type="text"
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="Enter story title..."
+                                    placeholder={t('se_title_placeholder')}
                                     className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
                                 />
                             </div>
@@ -511,25 +639,43 @@ export const StoryEditor: React.FC = () => {
                             onClick={() => toggleSection('cover')}
                             className="w-full flex items-center justify-between mb-3 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
                         >
-                            Story Cover
+                            {t('se_story_cover')}
                             {expandedSections.cover ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </button>
                         {expandedSections.cover && (
                             <div className="animate-in fade-in slide-in-from-top-1 duration-300">
                                 <div
-                                    onClick={() => coverInputRef.current?.click()}
-                                    className="relative aspect-[3/4] bg-gray-50 rounded-2xl overflow-hidden border-2 border-dashed border-gray-100 cursor-pointer group hover:border-indigo-200 transition-all"
+                                    onClick={() => !generatingCoverImage && coverInputRef.current?.click()}
+                                    className={`relative aspect-[3/4] bg-gray-50 rounded-2xl overflow-hidden border-2 border-dashed border-gray-100 cursor-pointer group hover:border-indigo-200 transition-all ${generatingCoverImage ? 'pointer-events-none' : ''}`}
                                 >
-                                    {coverImage ? (
+                                    {generatingCoverImage ? (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gradient-to-b from-indigo-50 to-purple-50">
+                                            <Loader className="w-8 h-8 text-indigo-400 animate-spin mb-3" />
+                                            <span className="text-xs font-bold text-indigo-500">{t('se_cover_generating')}</span>
+                                        </div>
+                                    ) : coverImage ? (
                                         <img src={coverImage} alt="Cover" className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
                                             <ImageIcon className="w-8 h-8 text-gray-200 mb-2" />
-                                            <span className="text-[10px] font-bold text-gray-400">Click to upload cover</span>
+                                            <span className="text-[10px] font-bold text-gray-400">{t('se_click_upload_cover')}</span>
                                         </div>
                                     )}
-                                    <div className="absolute inset-0 bg-indigo-600/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    {!generatingCoverImage && <div className="absolute inset-0 bg-indigo-600/10 opacity-0 group-hover:opacity-100 transition-opacity" />}
                                 </div>
+                                {/* AI Cover Generation Button */}
+                                <button
+                                    onClick={() => setShowCoverImagePromptModal(true)}
+                                    disabled={generatingCoverImage}
+                                    className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                                >
+                                    {generatingCoverImage ? (
+                                        <Loader size={14} className="animate-spin" />
+                                    ) : (
+                                        <Wand2 size={14} />
+                                    )}
+                                    {t('se_ai_generate_cover')}
+                                </button>
                                 <input
                                     type="file"
                                     ref={coverInputRef}
@@ -547,7 +693,7 @@ export const StoryEditor: React.FC = () => {
                             onClick={() => toggleSection('style')}
                             className="w-full flex items-center justify-between mb-3 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-indigo-600 transition-colors"
                         >
-                            Visual Style
+                            {t('se_visual_style')}
                             {expandedSections.style ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </button>
                         {expandedSections.style && (
@@ -611,7 +757,7 @@ export const StoryEditor: React.FC = () => {
                                         ) : (
                                             <>
                                                 <Plus size={16} className="text-gray-300 mb-1" />
-                                                <span className="text-[7px] font-black uppercase tracking-wider text-gray-400">Custom Style</span>
+                                                <span className="text-[7px] font-black uppercase tracking-wider text-gray-400">{t('se_custom_style')}</span>
                                             </>
                                         )}
 
@@ -657,7 +803,7 @@ export const StoryEditor: React.FC = () => {
                                 onClick={() => toggleSection('characters')}
                                 className="flex-1 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-indigo-600 transition-colors flex items-center justify-between"
                             >
-                                Characters
+                                {t('se_characters')}
                                 <div className="flex items-center gap-2">
                                     {expandedSections.characters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                 </div>
@@ -769,7 +915,7 @@ export const StoryEditor: React.FC = () => {
                         ) : (
                             <div className="w-full h-full bg-gradient-to-br from-gray-900 to-indigo-900 flex flex-col items-center justify-center text-gray-500">
                                 <ImageIcon className="w-20 h-20 opacity-20 mb-4" />
-                                <p className="text-sm font-bold opacity-30">No illustration yet</p>
+                                <p className="text-sm font-bold opacity-30">{t('se_no_illustration')}</p>
                             </div>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/90" />
@@ -780,7 +926,7 @@ export const StoryEditor: React.FC = () => {
                         <button
                             onClick={() => setCurrentPageIndex(Math.max(0, currentPageIndex - 1))}
                             className="absolute left-6 top-1/2 -translate-y-1/2 z-40 p-4 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full text-white/50 hover:text-white transition-all shadow-2xl border border-white/10"
-                            title="Previous Page"
+                            title={t('se_previous_page')}
                         >
                             <ArrowLeft size={32} />
                         </button>
@@ -795,7 +941,7 @@ export const StoryEditor: React.FC = () => {
                             }
                         }}
                         className="absolute right-6 top-1/2 -translate-y-1/2 z-40 p-4 bg-white/10 hover:bg-white/20 backdrop-blur-xl rounded-full text-white/50 hover:text-white transition-all shadow-2xl border border-white/10"
-                        title={currentPageIndex === pages.length - 1 ? "Add Next Page" : "Next Page"}
+                        title={currentPageIndex === pages.length - 1 ? t('se_add_next_page') : t('se_next_page')}
                     >
                         {currentPageIndex === pages.length - 1 ? <Plus size={32} /> : <ArrowRight size={32} />}
                     </button>
@@ -803,7 +949,7 @@ export const StoryEditor: React.FC = () => {
                     {/* AI & Upload Controls (Floating) */}
                     <div className="absolute top-8 right-8 z-50 flex flex-col gap-3">
                         <button
-                            onClick={() => handleGenerateImage(currentPage.pageNumber)}
+                            onClick={() => setShowImagePromptModal(true)}
                             disabled={generatingImages[currentPage.pageNumber]}
                             className="p-4 bg-indigo-600 text-white rounded-2xl shadow-2xl hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 group border border-indigo-400"
                         >
@@ -812,7 +958,7 @@ export const StoryEditor: React.FC = () => {
                             ) : (
                                 <Wand2 size={24} />
                             )}
-                            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-bold ml-1">AI {currentPage.imageUrl ? 'Regenerate' : 'Generate'}</span>
+                            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-bold ml-1">{currentPage.imageUrl ? t('se_ai_regenerate') : t('se_ai_generate')}</span>
                         </button>
 
                         <button
@@ -820,7 +966,7 @@ export const StoryEditor: React.FC = () => {
                             className="p-4 bg-white text-gray-800 rounded-2xl shadow-2xl hover:bg-gray-50 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 group border border-white"
                         >
                             <Upload size={24} />
-                            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-bold ml-1">Upload Illustration</span>
+                            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 font-bold ml-1">{t('se_upload_illustration')}</span>
                         </button>
                     </div>
 
@@ -832,7 +978,7 @@ export const StoryEditor: React.FC = () => {
                                 <div className="absolute inset-0 bg-indigo-900/40 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in duration-300">
                                     <div className="flex flex-col items-center gap-2">
                                         <Loader className="w-8 h-8 text-white animate-spin" />
-                                        <p className="text-[10px] font-black tracking-widest text-white uppercase">AI is polishing...</p>
+                                        <p className="text-[10px] font-black tracking-widest text-white uppercase">{t('se_ai_polishing')}</p>
                                     </div>
                                 </div>
                             )}
@@ -846,7 +992,7 @@ export const StoryEditor: React.FC = () => {
                                     value={currentPage.text}
                                     onChange={(e) => handleTextChange(e.target.value)}
                                     className="w-full bg-transparent border-none text-white text-2xl md:text-3xl font-medium leading-relaxed text-center placeholder-white/20 focus:ring-0 min-h-[120px] resize-none transition-all scrollbar-hide"
-                                    placeholder="Type '/' for AI magic, or express your imagination..."
+                                    placeholder={t('se_type_slash')}
                                 />
 
                                 {/* Slash Command Overlay - Immersive Style */}
@@ -855,7 +1001,7 @@ export const StoryEditor: React.FC = () => {
                                         <div className="bg-indigo-600/90 backdrop-blur-xl rounded-[30px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-6 border border-white/20">
                                             <div className="flex items-center gap-2 mb-4 text-white/80 text-[10px] font-black uppercase tracking-[0.2em]">
                                                 <Sparkles size={16} className="text-white" />
-                                                Narrative Polish
+                                                {t('se_narrative_polish')}
                                             </div>
                                             <div className="relative">
                                                 <input
@@ -867,7 +1013,7 @@ export const StoryEditor: React.FC = () => {
                                                         if (e.key === 'Enter') handleRefineText();
                                                         if (e.key === 'Escape') setSlashCommandActive(false);
                                                     }}
-                                                    placeholder="e.g., 'Make it more poetic and mysterious'"
+                                                    placeholder={t('se_polish_placeholder')}
                                                     className="w-full bg-white/10 border-none rounded-2xl px-6 py-4 text-lg text-white placeholder-white/40 focus:ring-2 focus:ring-white/30 transition-all font-medium"
                                                 />
                                                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
@@ -895,7 +1041,7 @@ export const StoryEditor: React.FC = () => {
                             onClick={() => toggleSection('pages')}
                             className="flex-1 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-indigo-600 transition-colors flex items-center justify-between"
                         >
-                            Pages ({pages.length})
+                            {t('se_pages')} ({pages.length})
                             <div className="flex items-center gap-2">
                                 {expandedSections.pages ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                             </div>
@@ -928,7 +1074,7 @@ export const StoryEditor: React.FC = () => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="text-[11px] font-bold truncate">
-                                            {page.text || 'Empty page...'}
+                                            {page.text || t('se_empty_page')}
                                         </div>
                                     </div>
                                     {pages.length > 1 && index === currentPageIndex && (
@@ -955,6 +1101,30 @@ export const StoryEditor: React.FC = () => {
                 onChange={(e) => handleImageUpload(e, currentPageIndex)}
                 accept="image/*"
                 className="hidden"
+            />
+
+            {/* Image Prompt Modal */}
+            <ImagePromptModal
+                isOpen={showImagePromptModal}
+                onClose={() => setShowImagePromptModal(false)}
+                onGenerate={(customPrompt, referencePhotos) => {
+                    setShowImagePromptModal(false);
+                    handleGenerateImage(currentPage.pageNumber, customPrompt || undefined, referencePhotos.length > 0 ? referencePhotos : undefined);
+                }}
+                pageText={currentPage?.text || ''}
+                isGenerating={generatingImages[currentPage?.pageNumber] || false}
+            />
+
+            {/* Cover Image Prompt Modal */}
+            <ImagePromptModal
+                isOpen={showCoverImagePromptModal}
+                onClose={() => setShowCoverImagePromptModal(false)}
+                onGenerate={(customPrompt, referencePhotos) => {
+                    setShowCoverImagePromptModal(false);
+                    handleGenerateCoverImage(customPrompt || undefined, referencePhotos.length > 0 ? referencePhotos : undefined);
+                }}
+                pageText={`${t('se_cover_prompt_context')}: "${title}"`}
+                isGenerating={generatingCoverImage}
             />
         </div>
     );

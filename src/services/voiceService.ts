@@ -21,7 +21,6 @@ export const registerVoiceForGeneration = async (userId: string, name: string, a
         // 1. Upload sample to Storage
         const fileRef = ref(storage, `${TEMP_SAMPLE_PATH}/${userId}/sample.webm`);
         await uploadBytes(fileRef, audioBlob);
-        console.log('[VoiceService] Sample uploaded to storage');
 
         // 2. Call Cloud Function
         const registerVoice = httpsCallable(functions, 'registerVoice');
@@ -31,7 +30,6 @@ export const registerVoiceForGeneration = async (userId: string, name: string, a
             storagePath: fileRef.fullPath
         });
 
-        console.log('[VoiceService] Function called successfully', result.data);
         return (result.data as { voiceId: string }).voiceId;
 
     } catch (error) {
@@ -59,17 +57,17 @@ export const subscribeToGenerationStatus = (userId: string, callback: (status: G
 
 
 // Save a cloned voice to Firestore
-export const saveVoice = async (userId: string, voiceId: string, name: string, sampleUrl?: string): Promise<void> => {
+export const saveVoice = async (userId: string, voiceId: string, name: string, sampleUrl?: string, sampleStoragePath?: string): Promise<void> => {
     const voiceDoc = doc(db, VOICES_COLLECTION, voiceId);
     const savedVoice: SavedVoice = {
         id: voiceId,
         name,
         createdAt: Date.now(),
         userId,
-        ...(sampleUrl ? { sampleUrl } : {})
+        ...(sampleUrl ? { sampleUrl } : {}),
+        ...(sampleStoragePath ? { sampleStoragePath } : {})
     };
     await setDoc(voiceDoc, savedVoice);
-    console.log('[VoiceService] Voice saved:', voiceId, name, sampleUrl ? '(with sample URL)' : '');
 };
 
 // Get all saved voices for a user
@@ -82,7 +80,6 @@ export const getSavedVoices = async (userId: string): Promise<SavedVoice[]> => {
     });
     // Sort by createdAt descending (newest first)
     voices.sort((a, b) => b.createdAt - a.createdAt);
-    console.log('[VoiceService] Loaded', voices.length, 'saved voices for user:', userId);
     return voices;
 };
 
@@ -91,13 +88,49 @@ export const deleteUserVoice = async (voiceId: string): Promise<void> => {
     try {
         // Delete from ElevenLabs first
         await deleteElevenLabsVoice(voiceId);
-        console.log('[VoiceService] Deleted from ElevenLabs:', voiceId);
     } catch (e) {
         console.warn('[VoiceService] Failed to delete from ElevenLabs (may already be deleted):', e);
     }
     // Then delete from Firestore
     await deleteDoc(doc(db, VOICES_COLLECTION, voiceId));
-    console.log('[VoiceService] Deleted from Firestore:', voiceId);
+};
+
+// Upload voice sample to permanent storage and return the storage path
+export const uploadVoiceSample = async (userId: string, voiceId: string, audioBlob: Blob): Promise<string> => {
+    const storagePath = `voice_samples/${userId}/${voiceId}/sample.webm`;
+    const fileRef = ref(storage, storagePath);
+    await uploadBytes(fileRef, audioBlob);
+    return storagePath;
+};
+
+// Get voice sample blob from permanent storage (for re-cloning)
+export const getVoiceSampleBlob = async (storagePath: string): Promise<Blob> => {
+    const { getDownloadURL } = await import('firebase/storage');
+    const fileRef = ref(storage, storagePath);
+    const url = await getDownloadURL(fileRef);
+    const response = await fetch(url);
+    return response.blob();
+};
+
+// Get saved voice by ID
+export const getSavedVoiceById = async (voiceId: string): Promise<SavedVoice | null> => {
+    const voiceDoc = doc(db, VOICES_COLLECTION, voiceId);
+    const snapshot = await getDoc(voiceDoc);
+    if (snapshot.exists()) {
+        return snapshot.data() as SavedVoice;
+    }
+    return null;
+};
+
+// Re-clone voice from stored sample → returns temporary ElevenLabs voice ID
+export const reCloneVoiceFromSample = async (savedVoice: SavedVoice): Promise<string> => {
+    if (!savedVoice.sampleStoragePath) {
+        throw new Error('No stored voice sample found for re-cloning');
+    }
+    const { addVoice } = await import('./elevenLabsService');
+    const sampleBlob = await getVoiceSampleBlob(savedVoice.sampleStoragePath);
+    const tempVoiceId = await addVoice(`temp_${savedVoice.name}_${Date.now()}`, sampleBlob);
+    return tempVoiceId;
 };
 
 // Get user's selected voice ID (returns null for default voice)
@@ -119,5 +152,29 @@ export const setSelectedVoice = async (userId: string, voiceId: string | null): 
     } else {
         await setDoc(settingsDoc, { selectedVoiceId: voiceId });
     }
-    console.log('[VoiceService] Selected voice set to:', voiceId || 'default');
+};
+
+/**
+ * Queue background audio generation for a newly published book
+ * if the user has a selected custom voice with stored sample.
+ * Call this after publishBook/publishDraft.
+ */
+export const queueAudioForNewBook = async (userId: string, bookId: string): Promise<void> => {
+    try {
+        const selectedVoiceId = await getSelectedVoice(userId);
+        if (!selectedVoiceId) return;
+
+        const savedVoice = await getSavedVoiceById(selectedVoiceId);
+        if (!savedVoice?.sampleStoragePath) return;
+
+        const { useStore } = await import('../store');
+        useStore.getState().addBackgroundTask({
+            bookId,
+            voiceId: selectedVoiceId,
+            type: 'single-reclone',
+            savedVoiceId: selectedVoiceId,
+        });
+    } catch {
+        // Non-critical: audio gen failure shouldn't block publish
+    }
 };

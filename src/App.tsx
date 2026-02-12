@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { useStore } from './store';
 import { Login } from './pages/Login';
+import { logPageView, setAnalyticsUser, setAnalyticsUserProperties } from './services/analyticsService';
 
 import { Home } from './pages/Home';
 import { Library } from './pages/Library';
@@ -19,6 +20,28 @@ import { StoryGenerating } from './pages/StoryGenerating';
 import { StoryPreview } from './pages/StoryPreview';
 
 import { BackgroundAudioGenerator } from './components/BackgroundAudioGenerator';
+import { ToastContainer } from './components/Toast';
+
+// Track page views on route changes
+function RouteTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    const pathMap: Record<string, string> = {
+      '/': 'Home',
+      '/welcome': 'Welcome',
+      '/library': 'Library',
+      '/create': 'Create Story',
+      '/generating': 'Story Generating',
+      '/preview': 'Story Preview',
+      '/editor/metadata': 'Metadata Editor',
+      '/editor/story': 'Story Editor',
+      '/editor/cover': 'Cover Editor',
+    };
+    const pageName = pathMap[location.pathname] || (location.pathname.startsWith('/read/') ? 'Book Reader' : location.pathname);
+    logPageView(pageName, location.pathname);
+  }, [location.pathname]);
+  return null;
+}
 
 function App() {
   const { setUser, setLoading, isLoading, user, setTargetLanguage, targetLanguage } = useStore();
@@ -43,9 +66,19 @@ function App() {
     if (hasLanguage === null) return; // Wait for language check
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
-      if (firebaseUser) {
-        const { getUserSettings } = await import('./services/userService');
-        const settings = await getUserSettings(firebaseUser.uid);
+      try {
+        if (firebaseUser) {
+          // Email/password users must verify email before entering the app
+          const isEmailAuth = firebaseUser.providerData.some(p => p.providerId === 'password');
+          if (isEmailAuth && !firebaseUser.emailVerified) {
+            // Don't set user — Login.tsx handles the verification flow
+            // Login.tsx will call signOut after sending verification email
+            setLoading(false);
+            return;
+          }
+
+          const { getUserSettings } = await import('./services/userService');
+          const settings = await getUserSettings(firebaseUser.uid);
 
         setUser({
           uid: firebaseUser.uid,
@@ -55,12 +88,41 @@ function App() {
           preferredLanguage: settings?.preferredLanguage,
         });
 
+        // Set analytics user
+        setAnalyticsUser(firebaseUser.uid);
+        if (settings?.preferredLanguage) {
+          setAnalyticsUserProperties({ preferred_language: settings.preferredLanguage });
+        }
+
+        // Ensure email is saved in Firestore (for admin lookup)
+        if (firebaseUser.email && !settings?.email) {
+          const { saveUserSettings } = await import('./services/userService');
+          await saveUserSettings(firebaseUser.uid, { email: firebaseUser.email });
+        }
+
+        // Register admin via secure Cloud Function (server verifies email)
+        if (firebaseUser.email) {
+          const { isAdminUser } = await import('./constants/admin');
+          if (isAdminUser(firebaseUser.email)) {
+            try {
+              const { registerAdminLoginSecure } = await import('./services/cloudFunctionsService');
+              await registerAdminLoginSecure();
+            } catch (adminErr) {
+              console.warn('[App] Admin registration CF failed (non-critical):', adminErr);
+            }
+          }
+        }
+
         // Sync language to server if needed
         if (hasLanguage && targetLanguage && !settings?.preferredLanguage) {
           const { saveUserSettings } = await import('./services/userService');
           await saveUserSettings(firebaseUser.uid, { preferredLanguage: targetLanguage });
         }
       } else {
+        setUser(null);
+      }
+      } catch (err) {
+        console.error('[App] Auth state error:', err);
         setUser(null);
       }
       setLoading(false);
@@ -95,9 +157,11 @@ function App() {
   if (!user) {
     return (
       <BrowserRouter>
+        <RouteTracker />
         <Routes>
           <Route path="*" element={<Login />} />
         </Routes>
+        <ToastContainer />
       </BrowserRouter>
     );
   }
@@ -107,6 +171,7 @@ function App() {
   // LOGGED IN → Show App
   return (
     <BrowserRouter>
+      <RouteTracker />
       <Routes>
         <Route path="/login" element={<Navigate to="/" />} />
         <Route
@@ -127,6 +192,7 @@ function App() {
 
       {/* Background Audio Generation Progress */}
       <BackgroundAudioGenerator />
+      <ToastContainer />
     </BrowserRouter>
   );
 }

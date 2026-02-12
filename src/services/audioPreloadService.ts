@@ -40,7 +40,6 @@ export const preloadBookAudio = async (
 ): Promise<void> => {
     // Logic matches 'playAudio' in BookReader:
     const effectiveVoiceKey = determineVoiceKey(book, language, voiceId);
-    console.log(`[AudioPreloadService] Preloading for Book: ${book.title}, Key: ${effectiveVoiceKey}`);
 
     let loadedCount = 0;
     const totalPages = book.pages.length;
@@ -127,7 +126,6 @@ export const preloadBookAudio = async (
     });
 
     await Promise.all(promises);
-    console.log(`[AudioPreloadService] Preload complete for ${book.title}`);
 };
 
 /**

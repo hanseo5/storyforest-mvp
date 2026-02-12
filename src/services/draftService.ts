@@ -1,17 +1,17 @@
 import { collection, addDoc, doc, setDoc, updateDoc, getDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import type { DraftBook, DraftPage } from '../types/draft';
+import { trackDraftSaved } from './analyticsService';
 
 export const saveDraft = async (draft: DraftBook): Promise<string> => {
     try {
-        console.log('[DraftService] Saving draft...', draft.title);
 
         // Extract pages and create clean draft data (Firestore doesn't accept undefined)
         const { pages, ...draftWithoutPages } = draft;
-        const cleanDraftData = {
+        const cleanDraftData = JSON.parse(JSON.stringify({
             ...draftWithoutPages,
             updatedAt: Date.now()
-        };
+        }));
 
         if (draft.id) {
             // Update existing draft
@@ -29,7 +29,7 @@ export const saveDraft = async (draft: DraftBook): Promise<string> => {
                 });
             }
 
-            console.log('[DraftService] Draft updated:', draft.id);
+            trackDraftSaved({ draftId: draft.id, title: draft.title || '' });
             return draft.id;
         } else {
             // Create new draft
@@ -51,7 +51,7 @@ export const saveDraft = async (draft: DraftBook): Promise<string> => {
                 });
             }
 
-            console.log('[DraftService] Draft created:', draftRef.id);
+            trackDraftSaved({ draftId: draftRef.id, title: draft.title || '' });
             return draftRef.id;
         }
     } catch (error) {
@@ -62,7 +62,6 @@ export const saveDraft = async (draft: DraftBook): Promise<string> => {
 
 export const updatePageImage = async (draftId: string, pageNumber: number, imageUrl: string): Promise<void> => {
     try {
-        console.log('[DraftService] Updating page image...', { draftId, pageNumber });
 
         const pageRef = doc(db, 'drafts', draftId, 'pages', String(pageNumber));
         await updateDoc(pageRef, {
@@ -70,7 +69,6 @@ export const updatePageImage = async (draftId: string, pageNumber: number, image
             imageStatus: 'complete'
         });
 
-        console.log('[DraftService] Page image updated');
     } catch (error) {
         console.error('[DraftService] Error updating page image:', error);
         throw error;
@@ -79,7 +77,6 @@ export const updatePageImage = async (draftId: string, pageNumber: number, image
 
 export const getDraft = async (draftId: string): Promise<DraftBook | null> => {
     try {
-        console.log('[DraftService] Fetching draft:', draftId);
 
         const draftRef = doc(db, 'drafts', draftId);
         const draftSnap = await getDoc(draftRef);
@@ -102,7 +99,6 @@ export const getDraft = async (draftId: string): Promise<DraftBook | null> => {
             pages
         } as DraftBook;
 
-        console.log('[DraftService] Draft fetched with', pages.length, 'pages');
         return draftData;
     } catch (error) {
         console.error('[DraftService] Error fetching draft:', error);
@@ -112,7 +108,6 @@ export const getDraft = async (draftId: string): Promise<DraftBook | null> => {
 
 export const listDrafts = async (authorId: string): Promise<DraftBook[]> => {
     try {
-        console.log('[DraftService] Listing drafts for:', authorId);
 
         const draftsRef = collection(db, 'drafts');
         // Use simple query first - composite index not required for single field filter
@@ -128,7 +123,6 @@ export const listDrafts = async (authorId: string): Promise<DraftBook[]> => {
         // Sort in memory by createdAt/updatedAt (most recent first)
         drafts.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
 
-        console.log('[DraftService] Found', drafts.length, 'drafts');
         return drafts;
     } catch (error) {
         console.error('[DraftService] Error listing drafts:', error);
@@ -142,7 +136,6 @@ export const listDrafts = async (authorId: string): Promise<DraftBook[]> => {
 
 export const deleteDraft = async (draftId: string): Promise<void> => {
     try {
-        console.log('[DraftService] Deleting draft:', draftId);
 
         // Delete pages subcollection first
         const pagesRef = collection(db, 'drafts', draftId, 'pages');
@@ -155,7 +148,6 @@ export const deleteDraft = async (draftId: string): Promise<void> => {
         const draftRef = doc(db, 'drafts', draftId);
         await deleteDoc(draftRef);
 
-        console.log('[DraftService] Draft deleted');
     } catch (error) {
         console.error('[DraftService] Error deleting draft:', error);
         throw error;
@@ -164,6 +156,5 @@ export const deleteDraft = async (draftId: string): Promise<void> => {
 
 export const publishDraft = async (draftId: string): Promise<void> => {
     // TODO: Move draft to books collection
-    console.log('[DraftService] Publishing draft:', draftId);
     // This will be implemented when we add the publish flow
 };

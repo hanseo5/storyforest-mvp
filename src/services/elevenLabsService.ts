@@ -14,7 +14,6 @@ export const VOICES = {
 // Default to Brian for deep, resonant voice
 export const generateSpeech = async (text: string, voiceId: string = VOICES.BRIAN): Promise<string> => {
     try {
-        console.log('[ElevenLabs] Generating speech for:', text.substring(0, 20) + '...');
         return await generateSpeechSecure(text, voiceId);
     } catch (error) {
         console.error('[ElevenLabs] Error:', error);

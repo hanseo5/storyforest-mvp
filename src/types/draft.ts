@@ -5,6 +5,12 @@ export interface Character {
     imageUrl?: string | null;
 }
 
+export interface PhotoContext {
+    file: File;
+    previewUrl: string;
+    description: string;
+}
+
 export interface StoryVariables {
     childName: string;
     childAge: number;
@@ -12,6 +18,7 @@ export interface StoryVariables {
     message: string;
     customMessage?: string;
     targetLanguage?: string;
+    photoContext?: PhotoContext;
 }
 
 export interface DraftPage {

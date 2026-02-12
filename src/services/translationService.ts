@@ -31,7 +31,6 @@ export const getCachedTranslation = async (bookId: string, lang: string): Promis
  */
 export const translateAndCacheBook = async (bookId: string, lang: string): Promise<TranslatedBook | null> => {
     try {
-        console.log(`[TranslationService] Translating book ${bookId} to ${lang}...`);
         const book = await getBookById(bookId);
         if (!book) return null;
 
@@ -55,7 +54,6 @@ export const translateAndCacheBook = async (bookId: string, lang: string): Promi
 
         // 3. Cache in Firestore
         await setDoc(doc(db, 'books', bookId, 'translations', lang), result);
-        console.log(`[TranslationService] Book ${bookId} translated and cached.`);
 
         return result;
     } catch (e) {
@@ -70,7 +68,6 @@ export const translateAndCacheBook = async (bookId: string, lang: string): Promi
 export const translateAllBooks = async (lang: string, onProgress?: (current: number, total: number) => void) => {
     try {
         const books = await getAllPublishedBooks();
-        console.log(`[TranslationService] Scaling translation for ${books.length} books to ${lang}`);
 
         const { useStore } = await import('../store');
 
@@ -80,7 +77,6 @@ export const translateAllBooks = async (lang: string, onProgress?: (current: num
             // Check if already translated
             let result = await getCachedTranslation(bookId, lang);
             if (result) {
-                console.log(`[TranslationService] Book ${bookId} already translated, skipping.`);
             } else {
                 result = await translateAndCacheBook(bookId, lang);
             }
@@ -92,7 +88,6 @@ export const translateAllBooks = async (lang: string, onProgress?: (current: num
 
             if (onProgress) onProgress(i + 1, books.length);
         }
-        console.log('[TranslationService] Global background translation complete.');
     } catch (e) {
         console.error('[TranslationService] Error in translateAllBooks:', e);
     }

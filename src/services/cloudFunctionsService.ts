@@ -6,6 +6,38 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../lib/firebase';
 
+/**
+ * Generic Gemini proxy — send any prompt securely through Cloud Functions.
+ * The API key never leaves the server.
+ */
+export const geminiGenerateSecure = async (
+    prompt: string,
+    generationConfig?: { temperature?: number; topK?: number; topP?: number; maxOutputTokens?: number },
+    safetySettings?: Array<{ category: string; threshold: string }>
+): Promise<string> => {
+    const fn = httpsCallable<
+        { prompt: string; generationConfig?: object; safetySettings?: object[] },
+        string
+    >(functions, 'geminiGenerate', { timeout: 120000 });
+
+    const result = await fn({ prompt, generationConfig, safetySettings });
+    return result.data;
+};
+
+/**
+ * Register admin login via secure Cloud Function.
+ * Server verifies the user's email against a server-side admin list.
+ */
+export const registerAdminLoginSecure = async (): Promise<{ success: boolean; migratedBooks: number }> => {
+    const fn = httpsCallable<void, { success: boolean; migratedBooks: number }>(
+        functions,
+        'registerAdminLogin',
+        { timeout: 60000 }
+    );
+    const result = await fn();
+    return result.data;
+};
+
 
 export interface StoryVariables {
     childName: string;
@@ -14,6 +46,13 @@ export interface StoryVariables {
     message: string;
     customMessage?: string;
     targetLanguage: string;
+    artStyle?: string;
+}
+
+export interface PhotoStoryVariables extends StoryVariables {
+    photoBase64?: string;
+    photoMimeType?: string;
+    photoDescription?: string;
 }
 
 export interface GeneratedPage {
@@ -36,7 +75,6 @@ export const generateStorySecure = async (
     variables: StoryVariables,
     onProgress?: (current: number, total: number, isImage: boolean) => void
 ): Promise<GeneratedStory> => {
-    console.log('[CloudFunctions] Calling generateStory function...');
 
     // Set timeout to 5 minutes (300000ms) for story generation which takes a long time
     const generateStoryFn = httpsCallable<StoryVariables, GeneratedStory>(
@@ -51,13 +89,43 @@ export const generateStorySecure = async (
         onProgress?.(0, 12, false);
 
         const result = await generateStoryFn(variables);
+        const totalPages = result.data.pages?.length || 12;
 
-        console.log('[CloudFunctions] Story generated successfully:', result.data.title);
-        onProgress?.(12, 12, true);
+        onProgress?.(totalPages, totalPages, true);
 
         return result.data;
     } catch (error: unknown) {
         console.error('[CloudFunctions] Error calling generateStory:', error);
+        throw error;
+    }
+};
+
+/**
+ * Generate a photo-based story using the Cloud Function
+ * Sends photo (base64) + description to server for Gemini Vision analysis + story generation.
+ */
+export const generatePhotoStorySecure = async (
+    variables: PhotoStoryVariables,
+    onProgress?: (current: number, total: number, isImage: boolean) => void
+): Promise<GeneratedStory> => {
+
+    const generatePhotoStoryFn = httpsCallable<PhotoStoryVariables, GeneratedStory>(
+        functions,
+        'generatePhotoStory',
+        { timeout: 300000 }
+    );
+
+    try {
+        onProgress?.(0, 12, false);
+
+        const result = await generatePhotoStoryFn(variables);
+        const totalPages = result.data.pages?.length || 12;
+
+        onProgress?.(totalPages, totalPages, true);
+
+        return result.data;
+    } catch (error: unknown) {
+        console.error('[CloudFunctions] Error calling generatePhotoStory:', error);
         throw error;
     }
 };
@@ -69,7 +137,6 @@ export const translateContentSecure = async (
     text: string,
     targetLanguage: string
 ): Promise<string> => {
-    console.log('[CloudFunctions] Calling translateContent function...');
 
     const translateFn = httpsCallable<{ text: string; targetLanguage: string }, string>(
         functions,
@@ -93,7 +160,6 @@ export const addVoiceSecure = async (
     audioBase64: string,
     description?: string
 ): Promise<string> => {
-    console.log('[CloudFunctions] Calling addVoiceFunction...');
 
     const addVoiceFn = httpsCallable<
         { name: string; audioBase64: string; description?: string },
@@ -102,7 +168,6 @@ export const addVoiceSecure = async (
 
     try {
         const result = await addVoiceFn({ name, audioBase64, description });
-        console.log('[CloudFunctions] Voice added successfully:', result.data);
         return result.data;
     } catch (error: unknown) {
         console.error('[CloudFunctions] Error calling addVoiceFunction:', error);
@@ -117,7 +182,6 @@ export const generateSpeechSecure = async (
     text: string,
     voiceId: string
 ): Promise<string> => {
-    console.log('[CloudFunctions] Calling generateSpeechFunction...');
 
     const generateSpeechFn = httpsCallable<
         { text: string; voiceId: string },
@@ -138,7 +202,6 @@ export const generateSpeechSecure = async (
  * Delete a voice using the Cloud Function
  */
 export const deleteVoiceSecure = async (voiceId: string): Promise<void> => {
-    console.log('[CloudFunctions] Calling deleteVoiceFunction...');
 
     const deleteVoiceFn = httpsCallable<{ voiceId: string }, void>(
         functions,
@@ -147,7 +210,6 @@ export const deleteVoiceSecure = async (voiceId: string): Promise<void> => {
 
     try {
         await deleteVoiceFn({ voiceId });
-        console.log('[CloudFunctions] Voice deleted successfully');
     } catch (error: unknown) {
         console.error('[CloudFunctions] Error calling deleteVoiceFunction:', error);
         throw error;

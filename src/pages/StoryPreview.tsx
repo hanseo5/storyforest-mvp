@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, RefreshCw, BookOpen, Sparkles, ChevronLeft } from 'lucide-react';
 import { useStore } from '../store';
 import { publishBook } from '../services/bookService';
+import { queueAudioForNewBook } from '../services/voiceService';
 import type { StoryVariables } from '../types/draft';
 import owlImage from '../assets/mascots/owl.png';
 
@@ -105,7 +106,10 @@ export const StoryPreview: React.FC = () => {
                 variables: variables
             };
 
-            await publishBook(bookData);
+            const bookId = await publishBook(bookData);
+
+            // Auto-generate audio with user's selected cloned voice
+            await queueAudioForNewBook(user.uid, bookId);
 
             // Navigate to library
             navigate('/library', {

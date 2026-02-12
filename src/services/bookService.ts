@@ -57,11 +57,9 @@ const uploadBase64Image = async (
         const storagePath = `books/${bookId}/pages/page_${pageNumber}.png`;
         const storageRef = ref(storage, storagePath);
 
-        console.log(`[BookService] Uploading image for page ${pageNumber}...`);
         await uploadBytes(storageRef, blob);
 
         const downloadUrl = await getDownloadURL(storageRef);
-        console.log(`[BookService] Image uploaded for page ${pageNumber}`);
 
         return downloadUrl;
     } catch (error) {
@@ -72,7 +70,6 @@ const uploadBase64Image = async (
 
 export const publishBook = async (storyData: GeneratedStoryData): Promise<string> => {
     try {
-        console.log('[BookService] Publishing generated story:', storyData.title);
 
         // First create the book document to get the ID
         const bookData = {
@@ -87,7 +84,6 @@ export const publishBook = async (storyData: GeneratedStoryData): Promise<string
         };
 
         const bookRef = await addDoc(collection(db, 'books'), bookData);
-        console.log('[BookService] Book created:', bookRef.id);
 
         // Upload images and save pages
         let coverUrl = '';
@@ -118,7 +114,10 @@ export const publishBook = async (storyData: GeneratedStoryData): Promise<string
             await updateDoc(bookDocRef, { coverUrl });
         }
 
-        console.log('[BookService] Book published successfully!');
+        // Track analytics
+        const { trackBookPublished } = await import('./analyticsService');
+        trackBookPublished({ bookId: bookRef.id, title: storyData.title });
+
         return bookRef.id;
 
     } catch (error) {
@@ -132,7 +131,6 @@ export const publishBook = async (storyData: GeneratedStoryData): Promise<string
  */
 export const publishDraft = async (draft: DraftBook): Promise<string> => {
     try {
-        console.log('[BookService] Publishing draft:', draft.title);
 
         if (!draft.id) {
             throw new Error('Draft must be saved before publishing');
@@ -157,7 +155,6 @@ export const publishDraft = async (draft: DraftBook): Promise<string> => {
         };
 
         const bookRef = await addDoc(collection(db, 'books'), bookData);
-        console.log('[BookService] Book created:', bookRef.id);
 
         // Save pages to subcollection
         for (const page of draft.pages) {
@@ -177,7 +174,6 @@ export const publishDraft = async (draft: DraftBook): Promise<string> => {
             updatedAt: Date.now()
         });
 
-        console.log('[BookService] Draft marked as published');
         return bookRef.id;
 
     } catch (error) {
@@ -187,11 +183,58 @@ export const publishDraft = async (draft: DraftBook): Promise<string> => {
 };
 
 /**
+ * Update an existing published book with new data
+ */
+export const updatePublishedBook = async (bookId: string, draft: DraftBook): Promise<void> => {
+    try {
+        const bookDocRef = doc(db, 'books', bookId);
+        const bookSnap = await getDoc(bookDocRef);
+        if (!bookSnap.exists()) {
+            throw new Error(`Book ${bookId} not found`);
+        }
+
+        // Update book document (preserve createdAt, authorId)
+        await updateDoc(bookDocRef, {
+            title: draft.title,
+            coverUrl: draft.protagonistImage || draft.pages[0]?.imageUrl || '',
+            description: draft.protagonist || '',
+            style: draft.style || '',
+            updatedAt: Date.now(),
+        });
+
+        // Delete old pages and write new ones
+        const oldPagesSnap = await getDocs(collection(db, 'books', bookId, 'pages'));
+        for (const pageDoc of oldPagesSnap.docs) {
+            await deleteDoc(pageDoc.ref);
+        }
+
+        for (const page of draft.pages) {
+            const pageRef = doc(db, 'books', bookId, 'pages', String(page.pageNumber));
+            await setDoc(pageRef, {
+                pageNumber: page.pageNumber,
+                text: page.text,
+                imageUrl: page.imageUrl || '',
+            });
+        }
+
+        // Update coverUrl if first page changed
+        const coverUrl = draft.protagonistImage || draft.pages[0]?.imageUrl || '';
+        if (coverUrl) {
+            await updateDoc(bookDocRef, { coverUrl });
+        }
+
+        console.log(`[BookService] Book ${bookId} updated successfully`);
+    } catch (error) {
+        console.error('[BookService] Error updating book:', error);
+        throw error;
+    }
+};
+
+/**
  * Get all published books for a user
  */
 export const getPublishedBooks = async (userId: string): Promise<Book[]> => {
     try {
-        console.log('[BookService] Fetching published books for:', userId);
 
         const booksQuery = query(
             collection(db, 'books'),
@@ -205,7 +248,6 @@ export const getPublishedBooks = async (userId: string): Promise<Book[]> => {
             ...doc.data()
         } as Book));
 
-        console.log('[BookService] Found', books.length, 'books');
         return books;
 
     } catch (error) {
@@ -219,7 +261,6 @@ export const getPublishedBooks = async (userId: string): Promise<Book[]> => {
  */
 export const getAllPublishedBooks = async (): Promise<Book[]> => {
     try {
-        console.log('[BookService] Fetching all published books');
 
         const booksQuery = query(
             collection(db, 'books'),
@@ -232,7 +273,6 @@ export const getAllPublishedBooks = async (): Promise<Book[]> => {
             ...doc.data()
         } as Book));
 
-        console.log('[BookService] Found', books.length, 'books total');
         return books;
 
     } catch (error) {
@@ -242,17 +282,52 @@ export const getAllPublishedBooks = async (): Promise<Book[]> => {
 };
 
 /**
+ * Get official Storyforest books (created by admin accounts)
+ */
+export const getOfficialBooks = async (adminUserIds: string[]): Promise<Book[]> => {
+    try {
+        if (adminUserIds.length === 0) return [];
+        const booksQuery = query(
+            collection(db, 'books'),
+            where('authorId', 'in', adminUserIds),
+            orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(booksQuery);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+    } catch (error) {
+        console.error('[BookService] Error fetching official books:', error);
+        return [];
+    }
+};
+
+/**
+ * Get books created by a specific user (personal library)
+ */
+export const getUserBooks = async (userId: string): Promise<Book[]> => {
+    try {
+        const booksQuery = query(
+            collection(db, 'books'),
+            where('authorId', '==', userId),
+            orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(booksQuery);
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
+    } catch (error) {
+        console.error('[BookService] Error fetching user books:', error);
+        return [];
+    }
+};
+
+/**
  * Get a book by ID with all its pages
  */
 export const getBookById = async (bookId: string): Promise<PublishedBook | null> => {
     try {
-        console.log('[BookService] Fetching book:', bookId);
 
         const bookRef = doc(db, 'books', bookId);
         const bookSnap = await getDoc(bookRef);
 
         if (!bookSnap.exists()) {
-            console.log('[BookService] Book not found');
             return null;
         }
 
@@ -266,7 +341,6 @@ export const getBookById = async (bookId: string): Promise<PublishedBook | null>
         const pagesSnap = await getDocs(pagesQuery);
         const pages: Page[] = pagesSnap.docs.map(doc => doc.data() as Page);
 
-        console.log('[BookService] Book loaded with', pages.length, 'pages');
 
         return {
             id: bookSnap.id,
@@ -293,7 +367,6 @@ export const getBookById = async (bookId: string): Promise<PublishedBook | null>
 export const generateBookAudio = async (bookId: string, customVoiceId?: string): Promise<void> => {
     try {
         const voiceKey = customVoiceId || 'default';
-        console.log('[BookService] Starting audiobook generation for:', bookId, 'VoiceKey:', voiceKey);
 
         // Get book pages
         const book = await getBookById(bookId);
@@ -304,11 +377,9 @@ export const generateBookAudio = async (bookId: string, customVoiceId?: string):
             // Check if audio already exists for this voice
             const existingAudioUrl = page.audioUrls?.[voiceKey];
             if (existingAudioUrl && existingAudioUrl.length > 0) {
-                console.log(`[BookService] Page ${page.pageNumber} already has audio for voice ${voiceKey}, skipping.`);
                 continue;
             }
 
-            console.log(`[BookService] Generating audio for page ${page.pageNumber} (VoiceKey: ${voiceKey})...`);
 
             // Generate Speech
             const audioBlob = await generateSpeechBlob(page.text, customVoiceId);
@@ -317,7 +388,6 @@ export const generateBookAudio = async (bookId: string, customVoiceId?: string):
             const storagePath = `books/${bookId}/pages/${page.pageNumber}_audio_${voiceKey}.mp3`;
             const storageRef = ref(storage, storagePath);
 
-            console.log(`[BookService] Uploading audio to ${storagePath}...`);
             await uploadBytes(storageRef, audioBlob);
 
             // Get URL
@@ -333,10 +403,8 @@ export const generateBookAudio = async (bookId: string, customVoiceId?: string):
                 }
             });
 
-            console.log(`[BookService] Page ${page.pageNumber} audio saved for voice ${voiceKey}:`, audioUrl);
         }
 
-        console.log('[BookService] Audiobook generation complete!');
 
     } catch (error) {
         console.error('[BookService] Error generating audiobook:', error);
@@ -366,18 +434,15 @@ export const generateAllBooksAudio = async (
 ): Promise<void> => {
     try {
         const voiceKey = customVoiceId || 'default';
-        console.log('[BookService] Starting batch audio generation for all books. VoiceKey:', voiceKey);
 
         // Get all books
         const books = await getAllPublishedBooks();
-        console.log('[BookService] Found', books.length, 'books to process');
 
         for (let bookIdx = 0; bookIdx < books.length; bookIdx++) {
             const bookMeta = books[bookIdx];
             const book = await getBookById(bookMeta.id);
             if (!book) continue;
 
-            console.log(`[BookService] Processing book ${bookIdx + 1}/${books.length}: ${book.title}`);
 
             for (let pageIdx = 0; pageIdx < book.pages.length; pageIdx++) {
                 const page = book.pages[pageIdx];
@@ -394,11 +459,9 @@ export const generateAllBooksAudio = async (
                 // Check if audio already exists for this voice
                 const existingAudioUrl = page.audioUrls?.[voiceKey];
                 if (existingAudioUrl && existingAudioUrl.length > 0) {
-                    console.log(`[BookService] Book "${book.title}" Page ${page.pageNumber} already has audio for ${voiceKey}, skipping.`);
                     continue;
                 }
 
-                console.log(`[BookService] Generating audio for "${book.title}" Page ${page.pageNumber}...`);
 
                 // Generate Speech
                 const audioBlob = await generateSpeechBlob(page.text, customVoiceId);
@@ -421,11 +484,9 @@ export const generateAllBooksAudio = async (
                     }
                 });
 
-                console.log(`[BookService] Audio saved for "${book.title}" Page ${page.pageNumber}`);
             }
         }
 
-        console.log('[BookService] Batch audio generation complete!');
 
     } catch (error) {
         console.error('[BookService] Error in batch audio generation:', error);
@@ -444,7 +505,6 @@ export const generateTranslatedAudio = async (
 ): Promise<void> => {
     try {
         const voiceKey = `default_${language}`;
-        console.log('[BookService] Starting translated audio generation for:', language);
 
         const books = await getAllPublishedBooks();
 
@@ -458,7 +518,6 @@ export const generateTranslatedAudio = async (
             const translation = await getCachedTranslation(book.id, language);
 
             if (!translation?.pages) {
-                console.log(`[BookService] No translation found for "${book.title}" in ${language}, skipping.`);
                 continue;
             }
 
@@ -479,11 +538,9 @@ export const generateTranslatedAudio = async (
                 // Check if translated audio already exists
                 const existingAudioUrl = page.audioUrls?.[voiceKey];
                 if (existingAudioUrl && existingAudioUrl.length > 0) {
-                    console.log(`[BookService] Translated audio already exists for "${book.title}" Page ${page.pageNumber}, skipping.`);
                     continue;
                 }
 
-                console.log(`[BookService] Generating translated audio for "${book.title}" Page ${page.pageNumber}...`);
 
                 const audioBlob = await generateSpeechBlob(translatedText);
 
@@ -502,11 +559,9 @@ export const generateTranslatedAudio = async (
                     }
                 });
 
-                console.log(`[BookService] Translated audio saved for "${book.title}" Page ${page.pageNumber}`);
             }
         }
 
-        console.log('[BookService] Translated audio generation complete!');
 
     } catch (error) {
         console.error('[BookService] Error generating translated audio:', error);
@@ -520,7 +575,6 @@ export const generateTranslatedAudio = async (
  */
 export const deleteBook = async (bookId: string): Promise<void> => {
     try {
-        console.log('[BookService] Deleting book:', bookId);
 
         // 1. Delete all pages subcollection
         const pagesRef = collection(db, 'books', bookId, 'pages');
@@ -529,7 +583,6 @@ export const deleteBook = async (bookId: string): Promise<void> => {
         for (const pageDoc of pagesSnapshot.docs) {
             await deleteDoc(pageDoc.ref);
         }
-        console.log('[BookService] Deleted', pagesSnapshot.docs.length, 'pages');
 
         // 2. Delete from Storage (images and audio)
         try {
@@ -551,7 +604,6 @@ export const deleteBook = async (bookId: string): Promise<void> => {
                 await deleteObject(fileRef);
             }
 
-            console.log('[BookService] Deleted storage files');
         } catch (storageError) {
             console.warn('[BookService] Storage cleanup failed (may not exist):', storageError);
         }
@@ -560,7 +612,6 @@ export const deleteBook = async (bookId: string): Promise<void> => {
         const bookRef = doc(db, 'books', bookId);
         await deleteDoc(bookRef);
 
-        console.log('[BookService] Book deleted successfully:', bookId);
 
     } catch (error) {
         console.error('[BookService] Error deleting book:', error);

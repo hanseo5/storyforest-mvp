@@ -4,7 +4,8 @@ import type { UserProfile } from '../types';
 export interface BackgroundTask {
     bookId?: string;
     voiceId: string;
-    type: 'all' | 'single';
+    type: 'all' | 'single' | 'single-reclone';
+    savedVoiceId?: string; // For re-clone: the Firestore voice doc ID with stored sample
 }
 
 interface AppState {
@@ -59,6 +60,9 @@ export const useStore = create<AppState>((set: (fn: (state: AppState) => Partial
             const { saveUserSettings } = await import('../services/userService');
             await saveUserSettings(user.uid, { preferredLanguage: lang });
         }
+        // Track language change
+        const { trackLanguageChanged } = await import('../services/analyticsService');
+        trackLanguageChanged({ language: lang });
         set({ targetLanguage: lang, isTranslatingBooks: true });
 
         // Trigger background translation for all books

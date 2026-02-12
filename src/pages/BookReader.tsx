@@ -165,7 +165,6 @@ export const BookReader: React.FC = () => {
         // Auto-play with user interaction handling
         const attemptPlay = () => {
             bgm.play().catch(e => {
-                console.log('[BGM] Autoplay blocked, will start on first interaction:', e);
             });
         };
 
@@ -202,20 +201,18 @@ export const BookReader: React.FC = () => {
     useEffect(() => {
         if (!id) return;
         const fetchBook = async () => {
-            console.log('[BookReader] Fetching book from Firestore...', id);
             const data = await getBookById(id);
             if (data) {
-                console.log('[BookReader] Book loaded:', data.title, 'Pages:', data.pages.length);
                 setBook(data);
             } else {
                 console.error('[BookReader] Failed to load book');
+                navigate('/library');
             }
 
             // Load user's selected voice
             if (user) {
                 const voiceId = await getSelectedVoice(user.uid);
                 setSelectedVoiceId(voiceId);
-                console.log('[BookReader] Selected voice:', voiceId || 'default');
             }
 
             setLoading(false);
@@ -277,7 +274,6 @@ export const BookReader: React.FC = () => {
     const playAudio = async (requestId?: number) => {
         // If requestId is provided, ensure it matches the current request
         if (requestId !== undefined && requestId !== playRequestRef.current) {
-            console.log('[BookReader] Audio play cancelled: stale request ID');
             return;
         }
 
@@ -319,7 +315,6 @@ export const BookReader: React.FC = () => {
         if (!isMountedRef.current) return;
 
         if (preloadedUrl) {
-            console.log('[BookReader] Playing PRELOADED audio (Zero Latency) for:', effectiveKey);
             const audio = new Audio(preloadedUrl);
             setupAudio(audio, requestId);
             return;
@@ -332,14 +327,12 @@ export const BookReader: React.FC = () => {
 
             if (cachedTranslatedAudioUrl) {
                 // Use cached translated audio (Network fetch required)
-                console.log('[BookReader] Playing cached translated audio for:', targetLanguage);
                 const audio = new Audio(cachedTranslatedAudioUrl);
                 setupAudio(audio, requestId);
                 return;
             }
 
             // No cache - generate fresh TTS for the translated text
-            console.log('[BookReader] No cached translated audio, generating TTS for:', targetLanguage);
             setIsAudioLoading(true);
             try {
                 const generatedUrl = await generateSpeech(displayText, selectedVoiceId || undefined);
@@ -365,14 +358,12 @@ export const BookReader: React.FC = () => {
 
         if (audioUrl) {
             // Use existing (pre-generated) audio for selected voice
-            console.log('[BookReader] Playing cached audio for voice:', voiceKey);
             const audio = new Audio(audioUrl);
             setupAudio(audio, requestId);
             return;
         }
 
         // No cached audio - generate TTS with selected voice
-        console.log('[BookReader] No cached audio, generating TTS for voice:', voiceKey);
         setIsAudioLoading(true);
         try {
             const generatedUrl = await generateSpeech(displayText, selectedVoiceId || undefined);
@@ -396,7 +387,6 @@ export const BookReader: React.FC = () => {
     const setupAudio = (audio: HTMLAudioElement, requestId?: number) => {
         // If requestId is provided, ensure it matches the current request
         if (requestId !== undefined && requestId !== playRequestRef.current) {
-            console.log('[BookReader] Audio setup cancelled: stale request ID');
             audio.pause(); // Stop the audio if it somehow started
             audio.src = ''; // Clear the source
             return;

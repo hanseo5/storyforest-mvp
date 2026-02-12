@@ -45,7 +45,7 @@ export const RecordingQualityGuide: React.FC<RecordingQualityGuideProps> = ({
                         <div className="flex items-center justify-center gap-2 mb-1">
                             <Gauge size={18} className={mode === 'quick' ? 'text-blue-600' : 'text-gray-400'} />
                             <span className={`font-bold text-sm ${mode === 'quick' ? 'text-blue-700' : 'text-gray-600'}`}>
-                                Quick Record
+                                {t('quick_record')}
                             </span>
                         </div>
                         <p className="text-xs text-gray-500">20s ~ 1m</p>
@@ -60,7 +60,7 @@ export const RecordingQualityGuide: React.FC<RecordingQualityGuideProps> = ({
                         <div className="flex items-center justify-center gap-2 mb-1">
                             <CheckCircle2 size={18} className={mode === 'quality' ? 'text-purple-600' : 'text-gray-400'} />
                             <span className={`font-bold text-sm ${mode === 'quality' ? 'text-purple-700' : 'text-gray-600'}`}>
-                                High Quality
+                                {t('high_quality')}
                             </span>
                         </div>
                         <p className="text-xs text-gray-500">2~5m rec.</p>
@@ -74,7 +74,7 @@ export const RecordingQualityGuide: React.FC<RecordingQualityGuideProps> = ({
                     <div className="flex items-start gap-2">
                         <Info size={16} className="text-purple-600 mt-0.5 shrink-0" />
                         <p className="text-xs text-purple-800">
-                            <strong>High Quality mode</strong> uses longer recordings to help the AI learn your voice more accurately. Including various tones and emotions is even better!
+                            <strong>{t('high_quality')}</strong> {t('high_quality_desc')}
                         </p>
                     </div>
                 </div>
@@ -97,7 +97,7 @@ export const RecordingQualityGuide: React.FC<RecordingQualityGuideProps> = ({
             <div className="flex items-center justify-center gap-4 py-2">
                 <div className="flex items-center gap-1 text-xs text-gray-500">
                     <Clock size={12} />
-                    <span>Recommended Time:</span>
+                    <span>{t('recommended_time')}:</span>
                 </div>
                 {mode === 'quick' ? (
                     <span className="text-sm font-bold text-blue-600">20s ~ 1m</span>

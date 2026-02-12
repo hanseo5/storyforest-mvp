@@ -69,7 +69,6 @@ export const VoiceStorageModal: React.FC<VoiceStorageModalProps> = ({ onClose, o
                 setSelectedId(null);
                 if (user) await setSelectedVoice(user.uid, null);
             }
-            console.log('[VoiceStorage] Voice deleted successfully:', voiceIdToDelete);
         } catch (e) {
             console.error('[VoiceStorage] Delete failed:', e);
         } finally {

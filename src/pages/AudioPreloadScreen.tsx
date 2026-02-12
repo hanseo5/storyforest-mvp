@@ -7,28 +7,15 @@ import { useStore } from '../store';
 import { useTranslation } from '../hooks/useTranslation';
 import squirrelImage from '../assets/mascots/squirrel.png';
 
-// 다람쥐 가이드 메시지
-const SQUIRREL_MESSAGES = {
-    loading: ["책들을 찾아보고 있어요... 📚", "잠깐만 기다려 주세요~ 🐿️"],
-    generating: [
-        "목소리를 준비하고 있어요! 🎵",
-        "예쁜 목소리로 읽어줄게요~ 🎤",
-        "열심히 녹음 중이에요! ✨",
-        "마법의 음악을 만들어요! 🪄"
-    ],
-    translating: [
-        "다른 언어로 바꾸고 있어요! 🌍",
-        "번역된 책을 준비 중이에요~ 📖",
-        "여러 나라 말로 읽어줄게요! 🌈"
-    ],
-    downloading: [
-        "책을 다운로드하고 있어요! 📥",
-        "곧 준비가 끝나요~ 🐿️",
-        "오디오를 저장하는 중이에요! 💾"
-    ],
-    done: ["짜잔! 모든 준비가 완료되었어요! 🎉"],
-    error: ["앗, 문제가 생겼어요... 😢"]
-};
+// Squirrel guide messages - i18n
+const getSquirrelMessages = (t: (key: string) => string) => ({
+    loading: [t('ap_loading'), t('ap_loading_2')],
+    generating: [t('ap_gen_1'), t('ap_gen_2'), t('ap_gen_3'), t('ap_gen_4')],
+    translating: [t('ap_trans_1'), t('ap_trans_2'), t('ap_trans_3')],
+    downloading: [t('ap_dl_1'), t('ap_dl_2'), t('ap_dl_3')],
+    done: [t('ap_done')],
+    error: [t('ap_error')]
+});
 
 export const AudioPreloadScreen: React.FC = () => {
     const navigate = useNavigate();
@@ -38,17 +25,19 @@ export const AudioPreloadScreen: React.FC = () => {
     const { targetLanguage } = useStore();
     const { t } = useTranslation();
 
+    const squirrelMessages = getSquirrelMessages(t);
+
     const [status, setStatus] = useState<'loading' | 'generating' | 'translating' | 'downloading' | 'done' | 'error'>('loading');
     const [progress, setProgress] = useState<AudioGenerationProgress | null>(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [phase, setPhase] = useState<'default' | 'translated' | 'download'>('default');
-    const [squirrelMessage, setSquirrelMessage] = useState(SQUIRREL_MESSAGES.loading[0]);
+    const [squirrelMessage, setSquirrelMessage] = useState('');
 
     // Update squirrel message based on status
     useEffect(() => {
-        const messages = SQUIRREL_MESSAGES[status];
+        const messages = squirrelMessages[status];
         let index = 0;
-        setSquirrelMessage(messages[0]);
+        setSquirrelMessage(messages[0] || '');
 
         if (messages.length > 1) {
             const interval = setInterval(() => {
@@ -125,7 +114,7 @@ export const AudioPreloadScreen: React.FC = () => {
             return t('generating_audio') + ' (Default)';
         }
         if (status === 'translating') return t('generating_audio') + ` (${targetLanguage})`;
-        if (status === 'downloading') return '오디오 다운로드 중...';
+        if (status === 'downloading') return t('ap_audio_download');
         if (status === 'done') return t('done');
         if (status === 'error') return t('error');
         return '';
@@ -135,13 +124,13 @@ export const AudioPreloadScreen: React.FC = () => {
         if (status === 'loading') return t('loading');
         if (status === 'generating') {
             return voiceId
-                ? '녹음된 목소리로 오디오를 만들고 있어요...'
-                : '기본 내레이터로 오디오를 만들고 있어요...';
+                ? t('ap_custom_voice')
+                : t('ap_default_voice');
         }
         if (status === 'translating') {
-            return `${targetLanguage} 오디오를 생성하고 있어요...`;
+            return t('ap_trans_audio').replace('{lang}', targetLanguage || '');
         }
-        if (status === 'done') return '모든 오디오북을 들을 준비가 되었어요!';
+        if (status === 'done') return t('ap_all_ready');
         if (status === 'error') return errorMessage;
         return '';
     };
@@ -298,7 +287,7 @@ export const AudioPreloadScreen: React.FC = () => {
                     >
                         <img
                             src={squirrelImage}
-                            alt="다람쥐"
+                            alt="Squirrel"
                             className="w-full h-full object-contain drop-shadow-2xl"
                             style={{
                                 filter: 'drop-shadow(0 0 40px rgba(52, 211, 153, 0.45))'
@@ -408,7 +397,7 @@ export const AudioPreloadScreen: React.FC = () => {
                             {/* Book Progress */}
                             <div>
                                 <div className="flex justify-between text-sm text-white/70 mb-2 font-medium">
-                                    <span>📚 {progress.currentBook} / {progress.totalBooks} 책</span>
+                                    <span>📚 {progress.currentBook} / {progress.totalBooks} {t('ap_books')}</span>
                                     <span>{Math.round((progress.currentBook / progress.totalBooks) * 100)}%</span>
                                 </div>
                                 <div className="h-4 bg-white/20 rounded-full overflow-hidden border border-white/15">
@@ -439,7 +428,7 @@ export const AudioPreloadScreen: React.FC = () => {
                             {/* Current Book Info */}
                             <div className="bg-white/10 rounded-2xl p-5 border border-white/15">
                                 <p className="text-white font-bold truncate text-base">{progress.bookTitle}</p>
-                                <p className="text-white/50 text-sm mt-1">📄 {progress.currentPage} / {progress.totalPages} 페이지</p>
+                                <p className="text-white/50 text-sm mt-1">📄 {progress.currentPage} / {progress.totalPages} {t('ap_page')}</p>
                             </div>
                         </div>
                     )}
@@ -450,7 +439,7 @@ export const AudioPreloadScreen: React.FC = () => {
                             onClick={() => window.location.reload()}
                             className="mt-4 bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold transition-colors shadow-lg text-lg"
                         >
-                            다시 시도하기
+                            {t('ap_retry')}
                         </button>
                     )}
                 </div>

@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Mic, Square, Check, AlertTriangle, ChevronRight, Play, Pause, RotateCcw } from 'lucide-react';
 import { addVoice } from '../services/elevenLabsService';
 import { useStore } from '../store';
-import { RecordingQualityGuide, SAMPLE_TEXTS, getRecommendedTime } from './RecordingQualityGuide';
+import { RecordingQualityGuide } from './RecordingQualityGuide';
+import { LOCALIZED_SAMPLE_TEXTS, getRecommendedTime } from '../constants/recordingGuide';
 import { useTranslation } from '../hooks/useTranslation';
-import { translateContent } from '../services/geminiService';
 
 interface VoiceCloneModalProps {
     bookId: string;
@@ -17,8 +17,7 @@ export const VoiceCloneModal: React.FC<VoiceCloneModalProps> = ({ bookId, onClos
     const [step, setStep] = useState<'guide' | 'record' | 'processing' | 'done'>('guide');
     const [processStatus, setProcessStatus] = useState('');
     const [recordingMode, setRecordingMode] = useState<'quick' | 'quality'>('quick');
-    const [dynamicSampleText, setDynamicSampleText] = useState('');
-    const [isTranslatingSample, setIsTranslatingSample] = useState(false);
+    const [activeSentenceIndex, setActiveSentenceIndex] = useState(0);
 
     // Recording
     const [isRecording, setIsRecording] = useState(false);
@@ -34,29 +33,27 @@ export const VoiceCloneModal: React.FC<VoiceCloneModalProps> = ({ bookId, onClos
 
     const recommendedTime = getRecommendedTime(recordingMode);
 
+    // Get localized sentences for current language and mode
+    const lang = targetLanguage || 'English';
+    const localizedTexts = LOCALIZED_SAMPLE_TEXTS[lang] || LOCALIZED_SAMPLE_TEXTS['English'];
+    const sentences = recordingMode === 'quality' ? localizedTexts.quality : localizedTexts.quick;
+
+    // Cycle through sentences while recording
     useEffect(() => {
-        const translateSample = async () => {
-            const lang = targetLanguage || 'English';
-            if (lang === 'English') {
-                setDynamicSampleText(recordingMode === 'quality' ? SAMPLE_TEXTS.quality : SAMPLE_TEXTS.quick);
-                return;
-            }
+        if (!isRecording) return;
+        const interval = setInterval(() => {
+            setActiveSentenceIndex(prev => {
+                if (prev < sentences.length - 1) return prev + 1;
+                return prev;
+            });
+        }, recordingMode === 'quality' ? 12000 : 8000);
+        return () => clearInterval(interval);
+    }, [isRecording, sentences.length, recordingMode]);
 
-            setIsTranslatingSample(true);
-            try {
-                const baseText = recordingMode === 'quality' ? SAMPLE_TEXTS.quality : SAMPLE_TEXTS.quick;
-                const translated = await translateContent(baseText, lang);
-                setDynamicSampleText(translated);
-            } catch (e) {
-                console.error('[VoiceCloneModal] Sample translation failed:', e);
-                setDynamicSampleText(recordingMode === 'quality' ? SAMPLE_TEXTS.quality : SAMPLE_TEXTS.quick);
-            } finally {
-                setIsTranslatingSample(false);
-            }
-        };
-
-        translateSample();
-    }, [targetLanguage, recordingMode]);
+    // Reset active sentence when mode changes
+    useEffect(() => {
+        setActiveSentenceIndex(0);
+    }, [recordingMode]);
 
     useEffect(() => {
         return () => {
@@ -230,14 +227,44 @@ export const VoiceCloneModal: React.FC<VoiceCloneModalProps> = ({ bookId, onClos
                     {/* Step: Record */}
                     {step === 'record' && (
                         <div className="space-y-5">
-                            {/* Sample Text */}
-                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 max-h-48 overflow-y-auto">
-                                <p className="text-purple-900 font-medium mb-2 text-xs uppercase tracking-widest">
-                                    {t('please_read_below')}
-                                </p>
-                                <p className={`text-gray-700 leading-relaxed text-sm whitespace-pre-line ${isTranslatingSample ? 'opacity-50 animate-pulse' : ''}`}>
-                                    {isTranslatingSample ? t('translating') : dynamicSampleText}
-                                </p>
+                            {/* Sample Text - Sentence by Sentence */}
+                            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border border-purple-100 overflow-hidden">
+                                <div className="px-4 pt-3 pb-2 border-b border-purple-100/60">
+                                    <p className="text-purple-600 font-semibold text-xs tracking-wide flex items-center gap-1.5">
+                                        📖 {t('please_read_below')}
+                                    </p>
+                                </div>
+                                <div className="p-4 max-h-52 overflow-y-auto space-y-2">
+                                    {sentences.map((sentence, index) => (
+                                        <div
+                                            key={index}
+                                            className={`flex items-start gap-3 px-3 py-2.5 rounded-xl transition-all duration-500 ${
+                                                index === activeSentenceIndex
+                                                    ? 'bg-white shadow-sm border border-purple-200 scale-[1.01]'
+                                                    : index < activeSentenceIndex
+                                                    ? 'opacity-40'
+                                                    : 'opacity-70'
+                                            }`}
+                                        >
+                                            <span className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 ${
+                                                index === activeSentenceIndex
+                                                    ? 'bg-purple-500 text-white shadow-md'
+                                                    : index < activeSentenceIndex
+                                                    ? 'bg-green-100 text-green-600'
+                                                    : 'bg-gray-100 text-gray-400'
+                                            }`}>
+                                                {index < activeSentenceIndex ? '✓' : index + 1}
+                                            </span>
+                                            <p className={`text-sm leading-relaxed ${
+                                                index === activeSentenceIndex
+                                                    ? 'text-gray-800 font-medium'
+                                                    : 'text-gray-500'
+                                            }`}>
+                                                {sentence}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Recording Controls */}
@@ -271,9 +298,9 @@ export const VoiceCloneModal: React.FC<VoiceCloneModalProps> = ({ bookId, onClos
                                             />
                                         </div>
                                         <div className="flex justify-between text-xs text-gray-400 mt-1">
-                                            <span>Min</span>
-                                            <span>Rec.</span>
-                                            <span>Max</span>
+                                            <span>{t('rec_min')}</span>
+                                            <span>{t('rec_recommended')}</span>
+                                            <span>{t('rec_max')}</span>
                                         </div>
                                     </div>
                                 )}
@@ -326,7 +353,7 @@ export const VoiceCloneModal: React.FC<VoiceCloneModalProps> = ({ bookId, onClos
 
                                         {/* Recording Info */}
                                         <div className="text-center text-sm text-gray-500">
-                                            Rec Time: {formatTime(recordingTime)}
+                                            {t('rec_time')}: {formatTime(recordingTime)}
                                             {recordingTime >= recommendedTime.min && (
                                                 <span className="ml-2 text-green-500">✓ {t('confirm')}</span>
                                             )}
@@ -348,7 +375,7 @@ export const VoiceCloneModal: React.FC<VoiceCloneModalProps> = ({ bookId, onClos
                                         )}
 
                                         <p className="text-center text-xs text-gray-400 mt-2">
-                                            The recorded voice will be automatically deleted after the audiobook is created.
+                                            {t('voice_auto_delete_notice')}
                                         </p>
                                     </div>
                                 )}
@@ -386,7 +413,7 @@ export const VoiceCloneModal: React.FC<VoiceCloneModalProps> = ({ bookId, onClos
                             <p className="text-gray-600 text-sm">
                                 {t('voice_analysis_complete')}<br />
                                 <strong>{t('background_generation')}</strong><br />
-                                Please wait a moment, and the audio will appear.
+                                {t('voice_ready_soon')}
                             </p>
                             <button
                                 onClick={onSuccess}

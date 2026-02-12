@@ -3,9 +3,12 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Check, Loader, Image as ImageIcon, Upload } from 'lucide-react';
 import { generateImage } from '../services/imageService';
 import { useStore } from '../store';
+import { useTranslation } from '../hooks/useTranslation';
+import { toast } from '../components/Toast';
 import { doc, getDoc, getDocs, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { publishDraft } from '../services/bookService';
+import { queueAudioForNewBook } from '../services/voiceService';
 import type { DraftBook, DraftPage } from '../types/draft';
 
 interface LocationState {
@@ -16,6 +19,7 @@ export const CoverEditor: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useStore();
+    const { t } = useTranslation();
     const state = location.state as LocationState;
 
     const [draft, setDraft] = useState<DraftBook | null>(null);
@@ -35,7 +39,7 @@ export const CoverEditor: React.FC = () => {
                 const draftSnap = await getDoc(draftRef);
 
                 if (!draftSnap.exists()) {
-                    alert('Draft not found');
+                    toast.error(t('cover_draft_not_found'));
                     navigate('/create');
                     return;
                 }
@@ -57,7 +61,7 @@ export const CoverEditor: React.FC = () => {
                 }
             } catch (error) {
                 console.error('[CoverEditor] Failed to load draft:', error);
-                alert('Failed to load draft');
+                toast.error(t('cover_load_failed'));
                 navigate('/create');
             }
         };
@@ -75,7 +79,7 @@ export const CoverEditor: React.FC = () => {
             setCoverImage(imageUrl);
         } catch (error) {
             console.error('[CoverEditor] Failed to generate cover:', error);
-            alert('Failed to generate cover. Please try again.');
+            toast.error(t('cover_gen_failed'));
         } finally {
             setIsGeneratingCover(false);
         }
@@ -86,7 +90,6 @@ export const CoverEditor: React.FC = () => {
         reader.onload = (e) => {
             const base64Image = e.target?.result as string;
             setCoverImage(base64Image);
-            console.log('[CoverEditor] Cover image uploaded successfully');
         };
         reader.readAsDataURL(file);
     };
@@ -105,13 +108,12 @@ export const CoverEditor: React.FC = () => {
 
     const handlePublish = async () => {
         if (!draft || !coverImage) {
-            alert('Please generate a cover image first');
+            toast.warning(t('cover_need_image'));
             return;
         }
 
         setIsPublishing(true);
         try {
-            console.log('[CoverEditor] Publishing book...');
 
             // Update draft with cover image
             const updatedDraft = {
@@ -123,14 +125,16 @@ export const CoverEditor: React.FC = () => {
             // Should save draft update first? Maybe not needed if publishDraft handles it.
             // But let's make sure draft has the cover image.
 
-            await publishDraft(updatedDraft);
+            const bookId = await publishDraft(updatedDraft);
 
-            console.log('[CoverEditor] Book published successfully');
-            alert(`"${draft.title}" published successfully! 🎉`);
+            // Auto-generate audio with user's selected cloned voice
+            await queueAudioForNewBook(draft.authorId, bookId);
+
+            toast.success(t('cover_publish_success', { title: draft.title }));
             navigate('/library');
         } catch (error) {
             console.error('[CoverEditor] Failed to publish:', error);
-            alert('Failed to publish book. Please try again.');
+            toast.error(t('cover_publish_failed'));
         } finally {
             setIsPublishing(false);
         }
@@ -162,14 +166,14 @@ export const CoverEditor: React.FC = () => {
                     aria-label="Go back"
                 >
                     <ArrowLeft className="w-5 h-5 mr-2" />
-                    Back to Editor
+                    {t('cover_back_to_editor')}
                 </button>
             </div>
 
             <div className="max-w-4xl mx-auto">
                 <div className="text-center mb-12">
-                    <h1 className="text-4xl font-bold text-gray-800 mb-2">Create Your Book Cover</h1>
-                    <p className="text-gray-600">Final step before publishing your masterpiece!</p>
+                    <h1 className="text-4xl font-bold text-gray-800 mb-2">{t('cover_create_title')}</h1>
+                    <p className="text-gray-600">{t('cover_final_step')}</p>
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
@@ -182,21 +186,21 @@ export const CoverEditor: React.FC = () => {
                     {/* Author Name */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Author Name
+                            {t('cover_author_name')}
                         </label>
                         <input
                             type="text"
                             value={authorName}
                             onChange={(e) => setAuthorName(e.target.value)}
                             className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            placeholder="Enter author name..."
+                            placeholder={t('cover_author_placeholder')}
                         />
                     </div>
 
                     {/* Cover Image */}
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Cover Image
+                            {t('cover_image_label')}
                         </label>
 
                         {coverImage ? (
@@ -212,14 +216,14 @@ export const CoverEditor: React.FC = () => {
                                     className="mt-4 w-full px-4 py-3 border-2 border-indigo-600 text-indigo-600 rounded-xl font-semibold hover:bg-indigo-50 flex items-center justify-center gap-2"
                                 >
                                     <ImageIcon className="w-5 h-5" />
-                                    {isGeneratingCover ? 'Regenerating...' : 'Regenerate with AI'}
+                                    {isGeneratingCover ? t('cover_regenerating') : t('cover_regenerate_ai')}
                                 </button>
                                 <button
                                     onClick={triggerFileUpload}
                                     className="mt-2 w-full px-4 py-3 border-2 border-green-600 text-green-600 rounded-xl font-semibold hover:bg-green-50 flex items-center justify-center gap-2"
                                 >
                                     <Upload className="w-5 h-5" />
-                                    Replace with Upload
+                                    {t('cover_replace_upload')}
                                 </button>
                             </div>
                         ) : (
@@ -227,26 +231,26 @@ export const CoverEditor: React.FC = () => {
                                 {isGeneratingCover ? (
                                     <div>
                                         <Loader className="w-12 h-12 text-indigo-600 animate-spin mx-auto mb-4" />
-                                        <p className="text-gray-600">Creating your book cover...</p>
+                                        <p className="text-gray-600">{t('cover_creating')}</p>
                                     </div>
                                 ) : (
                                     <div>
                                         <ImageIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                                        <p className="text-gray-600 mb-4">Choose how to add your cover</p>
+                                        <p className="text-gray-600 mb-4">{t('cover_choose_method')}</p>
                                         <div className="flex gap-3 justify-center flex-wrap">
                                             <button
                                                 onClick={handleGenerateCover}
                                                 className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 flex items-center gap-2"
                                             >
                                                 <ImageIcon className="w-5 h-5" />
-                                                Generate with AI
+                                                {t('cover_generate_ai')}
                                             </button>
                                             <button
                                                 onClick={triggerFileUpload}
                                                 className="px-8 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 flex items-center gap-2"
                                             >
                                                 <Upload className="w-5 h-5" />
-                                                Upload Image
+                                                {t('cover_upload_image')}
                                             </button>
                                         </div>
                                     </div>
@@ -265,17 +269,17 @@ export const CoverEditor: React.FC = () => {
                             {isPublishing ? (
                                 <>
                                     <Loader className="w-6 h-6 animate-spin" />
-                                    Publishing...
+                                    {t('cover_publishing')}
                                 </>
                             ) : (
                                 <>
                                     <Check className="w-6 h-6" />
-                                    Publish Book
+                                    {t('cover_publish_book')}
                                 </>
                             )}
                         </button>
                         <p className="text-sm text-gray-500 text-center mt-3">
-                            Your book will be published to the library
+                            {t('cover_publish_hint')}
                         </p>
                     </div>
                 </div>

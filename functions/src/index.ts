@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 // Initialize admin app once here
 admin.initializeApp();
 
-export * from './registerVoice';
-export * from './generateAudio';
-export * from './geminiProxy';
-export * from './elevenlabs';
+export { registerVoice } from './registerVoice';
+export { generateAudio } from './generateAudio';
+export { generateStory, generatePhotoStory, translateContent, generateImageCF, geminiGenerate, registerAdminLogin } from './geminiProxy';
+export { addVoiceFunction, generateSpeechFunction, deleteVoiceFunction } from './elevenlabs';

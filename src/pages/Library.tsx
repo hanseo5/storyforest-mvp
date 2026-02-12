@@ -1,10 +1,13 @@
 /* eslint-disable react-hooks/rules-of-hooks -- Math.random for animation initial positions is acceptable */
-import React, { useEffect, useState } from 'react';
-import { Settings, Mic, User as UserIcon, ListMusic, Globe, AlertTriangle, Home, Sparkles, Star, Book, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useState, useRef } from 'react';
+import { Mic, User as UserIcon, ListMusic, Globe, AlertTriangle, Home, Sparkles, Star, Book, X, Plus, FileText, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { getAllPublishedBooks } from '../services/bookService';
+import { getOfficialBooks, getUserBooks, getAllPublishedBooks } from '../services/bookService';
+import { getAdminUserIds } from '../services/userService';
+import { isAdminUser } from '../constants/admin';
 import type { Book as BookType } from '../types';
+import type { DraftBook } from '../types/draft';
 import { BookDetailModal } from '../components/BookDetailModal';
 import { VoiceRecordModal } from '../components/VoiceRecordModal';
 import { VoiceStorageModal } from '../components/VoiceStorageModal';
@@ -14,11 +17,13 @@ import { LanguageSelection } from './LanguageSelection';
 import { cleanTranslatedText } from '../utils/textUtils';
 import squirrelImage from '../assets/mascots/squirrel.png';
 import { generateAllBooksAudio, generateTranslatedAudio } from '../services/bookService';
+import { listDrafts, getDraft, deleteDraft } from '../services/draftService';
 import { Loader2 } from 'lucide-react';
 
 export const Library: React.FC = () => {
     const navigate = useNavigate();
     const {
+        user,
         targetLanguage,
         translationCache,
         setTranslatedBook,
@@ -26,7 +31,11 @@ export const Library: React.FC = () => {
         translationProgress
     } = useStore();
     const { t } = useTranslation();
-    const [books, setBooks] = useState<BookType[]>([]);
+
+    // Tab state: 'bookstore' = official Storyforest, 'mybooks' = personal
+    const [activeTab, setActiveTab] = useState<'bookstore' | 'mybooks'>('bookstore');
+    const [officialBooks, setOfficialBooks] = useState<BookType[]>([]);
+    const [myBooks, setMyBooks] = useState<BookType[]>([]);
     const [loading, setLoading] = useState(true);
     const [showLanguageSelection, setShowLanguageSelection] = useState(false);
     const [selectedBook, setSelectedBook] = useState<BookType | null>(null);
@@ -39,52 +48,138 @@ export const Library: React.FC = () => {
     const [isSquirrelHovered, setIsSquirrelHovered] = useState(false);
     const [isAudioOptimizing, setIsAudioOptimizing] = useState(false);
 
+    // Drafts state
+    const [drafts, setDrafts] = useState<DraftBook[]>([]);
+    const [draftsLoading, setDraftsLoading] = useState(false);
+    const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
+    const [loadingDraftId, setLoadingDraftId] = useState<string | null>(null);
+
+    // Swipe support
+    const swipeX = useMotionValue(0);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Derived: which books to show based on active tab
+    const displayBooks = activeTab === 'bookstore' ? officialBooks : myBooks;
+
     useEffect(() => {
-        const fetchBooksAndTranslations = async () => {
+        const fetchBooks = async () => {
             setLoading(true);
-            const data = await getAllPublishedBooks();
-            setBooks(data);
 
-            if (targetLanguage) {
-                const { getCachedTranslation } = await import('../services/translationService');
-                const { detectLanguage } = await import('../utils/textUtils');
+            try {
+                // Resolve admin UIDs
+                const adminUids = await getAdminUserIds();
+                console.log('[Library] Admin UIDs resolved:', adminUids);
 
-                for (const book of data) {
-                    const originalLang = book.originalLanguage || 'English';
-                    const detectedLang = detectLanguage(book.title) || originalLang;
+                // If current user is admin, ensure their UID is included
+                if (user?.uid && user?.email && isAdminUser(user.email)) {
+                    if (!adminUids.includes(user.uid)) {
+                        adminUids.push(user.uid);
+                    }
+                }
 
-                    if (targetLanguage !== detectedLang) {
-                        const cached = await getCachedTranslation(book.id!, targetLanguage);
-                        if (cached) {
-                            setTranslatedBook(book.id!, targetLanguage, cached);
+                // Fetch official books (by admin authors)
+                let official: BookType[] = [];
+                if (adminUids.length > 0) {
+                    official = await getOfficialBooks(adminUids);
+                    console.log('[Library] Official books by admin UIDs:', official.length, official.map(b => b.title));
+                }
+                // Always also fetch all books to check what exists
+                const allBooks = await getAllPublishedBooks();
+                console.log('[Library] ALL books in DB:', allBooks.map(b => ({ title: b.title, authorId: b.authorId, id: b.id })));
+                if (official.length === 0) {
+                    // Fallback: admin UIDs didn't match, show all books except current user's
+                    official = user?.uid
+                        ? allBooks.filter(b => b.authorId !== user.uid)
+                        : allBooks;
+                }
+                console.log('[Library] Setting officialBooks:', official.length);
+                setOfficialBooks(official);
+
+                // Fetch personal books if user is logged in
+                let personal: BookType[] = [];
+                if (user?.uid) {
+                    personal = await getUserBooks(user.uid);
+                    setMyBooks(personal);
+
+                    // Also load drafts
+                    try {
+                        setDraftsLoading(true);
+                        const userDrafts = await listDrafts(user.uid);
+                        setDrafts(userDrafts);
+                    } catch (draftErr) {
+                        console.error('[Library] Error loading drafts:', draftErr);
+                    } finally {
+                        setDraftsLoading(false);
+                    }
+                }
+
+                // Load translation cache for visible books only
+                if (targetLanguage) {
+                    const { getCachedTranslation } = await import('../services/translationService');
+                    const { detectLanguage } = await import('../utils/textUtils');
+                    const visibleBooks = [...official, ...personal];
+                    for (const book of visibleBooks) {
+                        const originalLang = book.originalLanguage || 'English';
+                        const detectedLang = detectLanguage(book.title) || originalLang;
+                        if (targetLanguage !== detectedLang) {
+                            const cached = await getCachedTranslation(book.id!, targetLanguage);
+                            if (cached) {
+                                setTranslatedBook(book.id!, targetLanguage, cached);
+                            }
                         }
                     }
                 }
+            } catch (error) {
+                console.error('[Library] Error fetching books:', error);
             }
+
             setLoading(false);
         };
-        fetchBooksAndTranslations();
-    }, [targetLanguage]);
+        fetchBooks();
+    }, [targetLanguage, user?.uid]);
+
+    // Draft handlers
+    const handleOpenDraft = async (draftId: string) => {
+        setLoadingDraftId(draftId);
+        try {
+            const draft = await getDraft(draftId);
+            if (draft) {
+                navigate('/editor/story', { state: { existingDraft: draft } });
+            }
+        } catch (err) {
+            console.error('[Library] Error opening draft:', err);
+        } finally {
+            setLoadingDraftId(null);
+        }
+    };
+
+    const handleDeleteDraft = async (draftId: string) => {
+        if (!confirm(t('delete_draft_confirm'))) return;
+        setDeletingDraftId(draftId);
+        try {
+            await deleteDraft(draftId);
+            setDrafts(prev => prev.filter(d => d.id !== draftId));
+        } catch (err) {
+            console.error('[Library] Error deleting draft:', err);
+        } finally {
+            setDeletingDraftId(null);
+        }
+    };
 
     // Background Audio Optimization
     useEffect(() => {
         const optimizeAudio = async () => {
-            if (!books.length) return;
+            const allBooks = [...officialBooks, ...myBooks];
+            if (!allBooks.length) return;
             setIsAudioOptimizing(true);
             try {
-                // 1. Generate default audio
                 await generateAllBooksAudio(undefined);
-
-                // 2. Translate if needed
                 if (targetLanguage && targetLanguage !== 'English') {
                     await generateTranslatedAudio(targetLanguage);
                 }
-
-                // 3. Preload assets
                 const { preloadBookAudio } = await import('../services/audioPreloadService');
                 const { getBookById } = await import('../services/bookService');
-
-                for (const book of books) {
+                for (const book of allBooks) {
                     const fullBook = await getBookById(book.id);
                     if (fullBook) {
                         await preloadBookAudio(fullBook, targetLanguage || 'English', undefined, () => { });
@@ -97,12 +192,12 @@ export const Library: React.FC = () => {
             }
         };
 
-        if (books.length > 0) {
-            // Small delay to prioritize UI rendering
+        const totalBooks = officialBooks.length + myBooks.length;
+        if (totalBooks > 0) {
             const timer = setTimeout(optimizeAudio, 1000);
             return () => clearTimeout(timer);
         }
-    }, [books.length, targetLanguage]);
+    }, [officialBooks.length, myBooks.length, targetLanguage]);
 
     // Cycle squirrel messages
     useEffect(() => {
@@ -320,61 +415,98 @@ export const Library: React.FC = () => {
                 )}
             </AnimatePresence>
 
+            {/* Floating Side Icons - Left */}
+            <div className="fixed left-4 top-6 z-30 flex flex-col gap-3">
+                <button
+                    onClick={() => navigate('/welcome')}
+                    className="p-4 bg-white/95 backdrop-blur-sm text-emerald-600 hover:bg-emerald-50 rounded-2xl shadow-xl border-2 border-emerald-200 transition-all hover:scale-110 active:scale-95"
+                    title={t('go_home')}
+                >
+                    <Home className="w-7 h-7" />
+                </button>
+                <button
+                    onClick={() => setShowVoiceRecord(true)}
+                    className="p-4 bg-white/95 backdrop-blur-sm text-emerald-600 hover:bg-emerald-50 rounded-2xl shadow-xl border-2 border-emerald-200 transition-all hover:scale-110 active:scale-95"
+                    title={t('clone_voice')}
+                >
+                    <Mic className="w-7 h-7" />
+                </button>
+                <button
+                    onClick={() => setShowVoiceStorage(true)}
+                    className="p-4 bg-white/95 backdrop-blur-sm text-amber-600 hover:bg-amber-50 rounded-2xl shadow-xl border-2 border-amber-200 transition-all hover:scale-110 active:scale-95"
+                    title={t('select_voice')}
+                >
+                    <ListMusic className="w-7 h-7" />
+                </button>
+            </div>
+
+            {/* Floating Side Icons - Right */}
+            <div className="fixed right-4 top-6 z-30 flex flex-col gap-3">
+                <button
+                    onClick={() => setShowLanguageSelection(true)}
+                    className="p-4 bg-white/95 backdrop-blur-sm text-emerald-600 hover:bg-emerald-50 rounded-2xl shadow-xl border-2 border-emerald-200 transition-all hover:scale-110 active:scale-95"
+                    title={t('select_language')}
+                >
+                    <Globe className="w-7 h-7" />
+                </button>
+                <button
+                    onClick={() => navigate('/create')}
+                    className="p-4 bg-white/95 backdrop-blur-sm text-emerald-600 hover:bg-emerald-50 rounded-2xl shadow-xl border-2 border-emerald-200 transition-all hover:scale-110 active:scale-95"
+                    title={t('make_story')}
+                >
+                    <UserIcon className="w-7 h-7" />
+                </button>
+            </div>
+
             {/* Main Content */}
-            <div className="relative z-10 p-6">
-                {/* Header */}
-                <header className="flex items-center justify-between mb-8 max-w-6xl mx-auto px-5 py-4 bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border-3 border-emerald-200">
-                    <div className="flex items-center gap-3">
-                        {/* Home Button */}
+            <div className="relative z-10 px-16 md:px-20 py-4 md:py-6">
+                {/* Tab Switcher: 동화책방 / 내 동화책 */}
+                <div className="max-w-6xl mx-auto mb-5">
+                    <div className="relative bg-emerald-100/60 backdrop-blur-sm rounded-2xl p-1.5 flex">
+                        {/* Sliding indicator */}
+                        <motion.div
+                            className="absolute top-1.5 bottom-1.5 rounded-xl bg-white shadow-md"
+                            initial={false}
+                            animate={{
+                                left: activeTab === 'bookstore' ? '6px' : '50%',
+                                width: 'calc(50% - 9px)',
+                            }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        />
                         <button
-                            onClick={() => navigate('/welcome')}
-                            className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
-                            title="홈으로"
+                            onClick={() => setActiveTab('bookstore')}
+                            className={`relative z-10 flex-1 py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
+                                activeTab === 'bookstore' ? 'text-emerald-700' : 'text-gray-400'
+                            }`}
                         >
-                            <Home className="w-6 h-6" />
-                        </button>
-
-                        {/* Language Selector Trigger */}
-                        <button
-                            onClick={() => setShowLanguageSelection(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 rounded-xl border-2 border-emerald-100 hover:border-emerald-200 group transition-all active:scale-95"
-                        >
-                            <Globe className="w-5 h-5 text-emerald-600 group-hover:rotate-12 transition-transform" />
-                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 group-hover:text-emerald-700">
-                                {targetLanguage || t('select_language')}
-                            </span>
-                        </button>
-
-                        <button className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-full transition-colors" title={t('settings')}>
-                            <Settings className="w-5 h-5" />
-                        </button>
-                        <button
-                            onClick={() => setShowVoiceRecord(true)}
-                            className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors relative group"
-                            title="Clone Voice"
-                        >
-                            <Mic className="w-5 h-5" />
+                            <span className="text-lg">📚</span>
+                            {t('tab_bookstore')}
+                            {officialBooks.length > 0 && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                    activeTab === 'bookstore' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                                }`}>
+                                    {officialBooks.length}
+                                </span>
+                            )}
                         </button>
                         <button
-                            onClick={() => setShowVoiceStorage(true)}
-                            className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-full transition-colors relative group"
-                            title="Voice Library"
+                            onClick={() => setActiveTab('mybooks')}
+                            className={`relative z-10 flex-1 py-3 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
+                                activeTab === 'mybooks' ? 'text-emerald-700' : 'text-gray-400'
+                            }`}
                         >
-                            <ListMusic className="w-5 h-5" />
+                            <span className="text-lg">✨</span>
+                            {t('tab_mybooks')}
+                            {(myBooks.length + drafts.length) > 0 && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                    activeTab === 'mybooks' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                                }`}>
+                                    {myBooks.length + drafts.length}
+                                </span>
+                            )}
                         </button>
                     </div>
-
-                    <div className="flex items-center gap-3">
-                        <span className="text-3xl">🌲</span>
-                        <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-green-700">
-                            {isTranslatingBooks ? t('translating_library') : t('story_bookshelf')}
-                        </h1>
-                    </div>
-
-                    <button className="p-2.5 text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors border-2 border-transparent hover:border-emerald-100">
-                        <UserIcon className="w-6 h-6" />
-                    </button>
-                </header>
+                </div>
 
                 {/* Background Optimization Indicator */}
                 <AnimatePresence>
@@ -418,8 +550,33 @@ export const Library: React.FC = () => {
                     </div>
                 )}
 
-                {/* Book Grid */}
-                <div className="max-w-6xl mx-auto pr-0 md:pr-48 lg:pr-56">
+                {/* Swipeable Book Grid */}
+                <div
+                    ref={containerRef}
+                    className="max-w-6xl mx-auto pr-0 md:pr-48 lg:pr-56 touch-pan-y"
+                >
+                    <motion.div
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.15}
+                        onDragEnd={(_e, info) => {
+                            const threshold = 80;
+                            if (info.offset.x < -threshold && activeTab === 'bookstore') {
+                                setActiveTab('mybooks');
+                            } else if (info.offset.x > threshold && activeTab === 'mybooks') {
+                                setActiveTab('bookstore');
+                            }
+                        }}
+                        style={{ x: swipeX }}
+                    >
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={activeTab}
+                                initial={{ opacity: 0, x: activeTab === 'bookstore' ? -40 : 40 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: activeTab === 'bookstore' ? 40 : -40 }}
+                                transition={{ duration: 0.25, ease: 'easeOut' }}
+                            >
                     {loading ? (
                         <div className="flex flex-col items-center justify-center p-20">
                             <motion.div
@@ -429,7 +586,168 @@ export const Library: React.FC = () => {
                             />
                             <p className="mt-6 text-emerald-600 font-bold text-lg">{t('fetching_books')}</p>
                         </div>
-                    ) : books.length === 0 ? (
+                    ) : activeTab === 'mybooks' ? (
+                        /* === MY BOOKS TAB: Drafts + Published === */
+                        (displayBooks.length === 0 && drafts.length === 0) ? (
+                            <div className="flex flex-col items-center justify-center p-20">
+                                <motion.img
+                                    src={squirrelImage}
+                                    alt="다람쥐"
+                                    className="w-40 h-40 object-contain opacity-60 mb-6"
+                                    animate={{ y: [0, -8, 0] }}
+                                    transition={{ duration: 2, repeat: Infinity }}
+                                />
+                                <p className="text-gray-500 text-xl font-medium mb-2">{t('no_my_books_yet')}</p>
+                                <p className="text-gray-400 text-sm mb-6">{t('no_my_books_desc')}</p>
+                                <button
+                                    onClick={() => navigate('/create')}
+                                    className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-emerald-700 transition-colors shadow-lg flex items-center gap-2"
+                                >
+                                    <Plus size={22} />
+                                    {t('make_first_book')}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Drafts Section */}
+                                {(drafts.length > 0 || draftsLoading) && (
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <FileText size={16} className="text-amber-500" />
+                                            <h3 className="font-bold text-amber-700 text-sm">{t('drafts_section')}</h3>
+                                            <span className="text-xs text-amber-400 bg-amber-50 px-2 py-0.5 rounded-full">
+                                                {drafts.length}
+                                            </span>
+                                        </div>
+                                        {draftsLoading ? (
+                                            <div className="flex items-center justify-center py-8 text-amber-400">
+                                                <Loader2 size={24} className="animate-spin" />
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                                {drafts.map((draft, index) => (
+                                                    <motion.div
+                                                        key={draft.id}
+                                                        initial={{ opacity: 0, y: 20 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        transition={{ delay: index * 0.05 }}
+                                                        whileHover={{ scale: 1.03, y: -5 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-3 border-amber-100 hover:border-amber-300 flex flex-col h-full"
+                                                    >
+                                                        {/* Draft Cover/Preview */}
+                                                        <div
+                                                            onClick={() => draft.id && handleOpenDraft(draft.id)}
+                                                            className="aspect-[2/3] bg-gradient-to-br from-amber-50 to-orange-50 relative overflow-hidden cursor-pointer flex flex-col items-center justify-center p-4"
+                                                        >
+                                                            {loadingDraftId === draft.id ? (
+                                                                <Loader2 size={32} className="animate-spin text-amber-400" />
+                                                            ) : (
+                                                                <>
+                                                                    <FileText size={36} className="text-amber-300 mb-2" />
+                                                                    <span className="text-[10px] text-amber-400 font-medium">{t('open_draft')}</span>
+                                                                </>
+                                                            )}
+                                                            {/* Draft badge */}
+                                                            <div className="absolute top-2 left-2 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                                                                {t('drafts_section')}
+                                                            </div>
+                                                            {/* Delete button */}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    draft.id && handleDeleteDraft(draft.id);
+                                                                }}
+                                                                disabled={deletingDraftId === draft.id}
+                                                                className="absolute top-2 right-2 p-1.5 bg-white/80 hover:bg-red-50 rounded-lg text-red-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                                                            >
+                                                                {deletingDraftId === draft.id ? (
+                                                                    <Loader2 size={12} className="animate-spin" />
+                                                                ) : (
+                                                                    <Trash2 size={12} />
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                        <div className="p-3 flex-1 bg-gradient-to-b from-white to-amber-50/50">
+                                                            <h3 className="font-bold text-gray-800 line-clamp-2 leading-tight text-sm">
+                                                                {draft.title || t('untitled_draft')}
+                                                            </h3>
+                                                            <p className="text-[10px] text-amber-400 mt-1">
+                                                                {draft.pageCount || 0} {t('pages_count')} · {new Date(draft.updatedAt || draft.createdAt).toLocaleDateString()}
+                                                            </p>
+                                                        </div>
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Published Books Section */}
+                                {displayBooks.length > 0 && (
+                                    <div>
+                                        {drafts.length > 0 && (
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <Book size={16} className="text-emerald-500" />
+                                                <h3 className="font-bold text-emerald-700 text-sm">{t('published_section')}</h3>
+                                                <span className="text-xs text-emerald-400 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                                    {displayBooks.length}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <motion.div
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+                                        >
+                                            {displayBooks.map((book, index) => {
+                                                const translatedTitle = targetLanguage && translationCache[book.id!]?.[targetLanguage]?.title;
+                                                const displayTitle = translatedTitle ? cleanTranslatedText(translatedTitle) : book.title;
+
+                                                return (
+                                                    <motion.div
+                                                        key={book.id}
+                                                        initial={{ opacity: 0, y: 20 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        transition={{ delay: index * 0.05 }}
+                                                        whileHover={{ scale: 1.03, y: -5 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        onClick={() => setSelectedBook(book)}
+                                                        className="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden cursor-pointer border-3 border-emerald-100 hover:border-emerald-300 flex flex-col h-full"
+                                                    >
+                                                        <div className="aspect-[2/3] bg-emerald-50 relative overflow-hidden">
+                                                            <img
+                                                                src={book.coverUrl}
+                                                                alt={book.title}
+                                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                            />
+                                                            {isTranslatingBooks && (!targetLanguage || !translationCache[book.id!]?.[targetLanguage]?.title) && (
+                                                                <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center">
+                                                                    <div className="animate-pulse text-emerald-600 font-bold text-xs uppercase tracking-widest">{t('translating')}</div>
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                                                                <span className="text-white font-bold text-sm flex items-center gap-2">
+                                                                    <Book size={16} />
+                                                                    {t('read_label')}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="p-4 flex-1 bg-gradient-to-b from-white to-emerald-50/50">
+                                                            <h3 className={`font-bold text-gray-800 line-clamp-2 leading-tight text-sm ${(isTranslatingBooks && targetLanguage && !translationCache[book.id!]?.[targetLanguage]?.title) ? 'opacity-30' : ''}`}>
+                                                                {displayTitle}
+                                                            </h3>
+                                                        </div>
+                                                    </motion.div>
+                                                );
+                                            })}
+                                        </motion.div>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    ) : displayBooks.length === 0 ? (
+                        /* === BOOKSTORE TAB: Empty state === */
                         <div className="flex flex-col items-center justify-center p-20">
                             <motion.img
                                 src={squirrelImage}
@@ -453,7 +771,7 @@ export const Library: React.FC = () => {
                             animate={{ opacity: 1 }}
                             className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
                         >
-                            {books.map((book, index) => {
+                            {displayBooks.map((book, index) => {
                                 const translatedTitle = targetLanguage && translationCache[book.id!]?.[targetLanguage]?.title;
                                 const displayTitle = translatedTitle ? cleanTranslatedText(translatedTitle) : book.title;
 
@@ -496,6 +814,9 @@ export const Library: React.FC = () => {
                             })}
                         </motion.div>
                     )}
+                            </motion.div>
+                        </AnimatePresence>
+                    </motion.div>
                 </div>
             </div>
         </div>

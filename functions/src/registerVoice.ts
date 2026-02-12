@@ -1,4 +1,4 @@
-import { onRequest } from 'firebase-functions/v2/https';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { PubSub } from '@google-cloud/pubsub';
 import { addVoice } from './elevenlabs';
@@ -12,63 +12,71 @@ if (!admin.apps.length) {
 const pubsub = new PubSub();
 const apiKey = defineSecret('ELEVENLABS_API_KEY');
 
-export const registerVoice = onRequest({ secrets: [apiKey], cors: true }, async (req, res) => {
-    try {
-        const { storagePath, userId, name } = req.body;
-
-        if (!storagePath || !userId || !name) {
-            res.status(400).json({ error: 'Missing required fields: storagePath, userId, name' });
-            return;
+export const registerVoice = onCall(
+    {
+        secrets: [apiKey],
+        cors: true,
+        timeoutSeconds: 120,
+    },
+    async (request) => {
+        // Require authentication
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
         }
 
-        console.log(`[RegisterVoice] Request for user ${userId}, sample: ${storagePath}`);
+        // Use authenticated UID — never trust client-provided userId
+        const userId = request.auth.uid;
+        const { storagePath, name } = request.data as { storagePath?: string; name?: string };
 
-        // 1. Download audio file from Firebase Storage
-        const bucket = admin.storage().bucket();
-        const file = bucket.file(storagePath);
-        const [exists] = await file.exists();
-
-        if (!exists) {
-            res.status(404).json({ error: 'Audio sample file not found in storage' });
-            return;
+        if (!storagePath || !name) {
+            throw new HttpsError('invalid-argument', 'Missing required fields: storagePath, name');
         }
-
-        const [fileBuffer] = await file.download();
-        console.log(`[RegisterVoice] Downloaded sample, size: ${fileBuffer.length} bytes`);
-
-        // 2. Add Voice to ElevenLabs
-        const voiceId = await addVoice(name, [fileBuffer]);
-        console.log(`[RegisterVoice] Voice added to ElevenLabs: ${voiceId}`);
-
-        // 3. Update Firestore User Document
-        await admin.firestore().collection('users').doc(userId).update({
-            elevenlabs_voice_id: voiceId,
-            generation_status: 'processing',
-            last_generation_request: admin.firestore.FieldValue.serverTimestamp()
-        });
-
-        // 4. Trigger Background Audio Generation via Pub/Sub
-        const topicName = 'generate-audio';
-        const dataBuffer = Buffer.from(JSON.stringify({ userId, voiceId }));
 
         try {
-            await pubsub.topic(topicName).publishMessage({ data: dataBuffer });
-            console.log(`[RegisterVoice] Published message to ${topicName}`);
-        } catch (pubsubError) {
-            console.error('[RegisterVoice] Pub/Sub error:', pubsubError);
-            // Even if pubsub fails, we verify the user record is updated so we might retry manually or handle error
-            // For now, return error to client implies failure
-            throw new Error('Failed to trigger background generation');
+            console.log(`[RegisterVoice] Request for user ${userId}, sample: ${storagePath}`);
+
+            // 1. Download audio file from Firebase Storage
+            const bucket = admin.storage().bucket();
+            const file = bucket.file(storagePath);
+            const [exists] = await file.exists();
+
+            if (!exists) {
+                throw new HttpsError('not-found', 'Audio sample file not found in storage');
+            }
+
+            const [fileBuffer] = await file.download();
+            console.log(`[RegisterVoice] Downloaded sample, size: ${fileBuffer.length} bytes`);
+
+            // 2. Add Voice to ElevenLabs
+            const voiceId = await addVoice(name, [fileBuffer]);
+            console.log(`[RegisterVoice] Voice added to ElevenLabs: ${voiceId}`);
+
+            // 3. Update Firestore User Document
+            await admin.firestore().collection('users').doc(userId).update({
+                elevenlabs_voice_id: voiceId,
+                generation_status: 'processing',
+                last_generation_request: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // 4. Trigger Background Audio Generation via Pub/Sub
+            const topicName = 'generate-audio';
+            const dataBuffer = Buffer.from(JSON.stringify({ userId, voiceId }));
+
+            try {
+                await pubsub.topic(topicName).publishMessage({ data: dataBuffer });
+                console.log(`[RegisterVoice] Published message to ${topicName}`);
+            } catch (pubsubError) {
+                console.error('[RegisterVoice] Pub/Sub error:', pubsubError);
+                throw new HttpsError('internal', 'Failed to trigger background generation');
+            }
+
+            return { success: true, voiceId, status: 'processing' };
+
+        } catch (error: unknown) {
+            if (error instanceof HttpsError) throw error;
+            const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
+            console.error('[RegisterVoice] Error:', error);
+            throw new HttpsError('internal', errorMessage);
         }
-
-        // 5. Cleanup temporary storage file immediately (optional, or rely on lifecycle policy)
-        // await file.delete(); 
-
-        res.status(200).json({ success: true, voiceId, status: 'processing' });
-
-    } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
-        console.error('[RegisterVoice] Error:', error);
-        res.status(500).json({ error: errorMessage });
     }
-});
+);

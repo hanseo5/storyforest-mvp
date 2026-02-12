@@ -45,21 +45,29 @@ if (!admin.apps.length) {
 }
 const pubsub = new pubsub_1.PubSub();
 const apiKey = (0, params_1.defineSecret)('ELEVENLABS_API_KEY');
-exports.registerVoice = (0, https_1.onRequest)({ secrets: [apiKey], cors: true }, async (req, res) => {
+exports.registerVoice = (0, https_1.onCall)({
+    secrets: [apiKey],
+    cors: true,
+    timeoutSeconds: 120,
+}, async (request) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
+    // Use authenticated UID — never trust client-provided userId
+    const userId = request.auth.uid;
+    const { storagePath, name } = request.data;
+    if (!storagePath || !name) {
+        throw new https_1.HttpsError('invalid-argument', 'Missing required fields: storagePath, name');
+    }
     try {
-        const { storagePath, userId, name } = req.body;
-        if (!storagePath || !userId || !name) {
-            res.status(400).json({ error: 'Missing required fields: storagePath, userId, name' });
-            return;
-        }
         console.log(`[RegisterVoice] Request for user ${userId}, sample: ${storagePath}`);
         // 1. Download audio file from Firebase Storage
         const bucket = admin.storage().bucket();
         const file = bucket.file(storagePath);
         const [exists] = await file.exists();
         if (!exists) {
-            res.status(404).json({ error: 'Audio sample file not found in storage' });
-            return;
+            throw new https_1.HttpsError('not-found', 'Audio sample file not found in storage');
         }
         const [fileBuffer] = await file.download();
         console.log(`[RegisterVoice] Downloaded sample, size: ${fileBuffer.length} bytes`);
@@ -81,18 +89,16 @@ exports.registerVoice = (0, https_1.onRequest)({ secrets: [apiKey], cors: true }
         }
         catch (pubsubError) {
             console.error('[RegisterVoice] Pub/Sub error:', pubsubError);
-            // Even if pubsub fails, we verify the user record is updated so we might retry manually or handle error
-            // For now, return error to client implies failure
-            throw new Error('Failed to trigger background generation');
+            throw new https_1.HttpsError('internal', 'Failed to trigger background generation');
         }
-        // 5. Cleanup temporary storage file immediately (optional, or rely on lifecycle policy)
-        // await file.delete(); 
-        res.status(200).json({ success: true, voiceId, status: 'processing' });
+        return { success: true, voiceId, status: 'processing' };
     }
     catch (error) {
+        if (error instanceof https_1.HttpsError)
+            throw error;
         const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
         console.error('[RegisterVoice] Error:', error);
-        res.status(500).json({ error: errorMessage });
+        throw new https_1.HttpsError('internal', errorMessage);
     }
 });
 //# sourceMappingURL=registerVoice.js.map

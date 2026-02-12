@@ -95,6 +95,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
 
     const handleListen = () => {
         if (!book) return;
+        trackBookRead({ bookId: book.id, title: book.title });
         // Audio is already pre-generated during preload, just navigate to reader
         navigate(`/read/${book.id}?mode=listen`);
     };
@@ -153,7 +154,10 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
 
                         <div className="grid grid-cols-1 gap-4">
                             <button
-                                onClick={() => navigate(`/read/${book.id}`)}
+                                onClick={() => {
+                                    trackBookRead({ bookId: book.id, title: book.title });
+                                    navigate(`/read/${book.id}`);
+                                }}
                                 disabled={isTranslating}
                                 className={`flex items-center justify-center gap-3 bg-indigo-600 text-white py-4 px-6 rounded-xl font-bold text-lg hover:bg-indigo-700 transition-transform active:scale-95 shadow-lg shadow-indigo-200 ${isTranslating ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >

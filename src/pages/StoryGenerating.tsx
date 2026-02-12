@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, BookOpen, Image as ImageIcon, Feather, Star, Palette } from 'lucide-react';
-import { generateCompleteStory } from '../services/geminiService';
+import { generateCompleteStory, generatePhotoBasedStory } from '../services/geminiService';
 import type { StoryVariables } from '../types/draft';
 import owlImage from '../assets/mascots/owl.png';
 import { useTranslation } from '../hooks/useTranslation';
@@ -34,7 +34,13 @@ export const StoryGenerating: React.FC = () => {
     const location = useLocation();
     const { t } = useTranslation();
     const { targetLanguage } = useStore();
-    const state = location.state as { variables: StoryVariables } | null;
+    const state = location.state as {
+        variables: StoryVariables;
+        photoBase64?: string;
+        photoMimeType?: string;
+        photoDescription?: string;
+        isPhotoBased?: boolean;
+    } | null;
 
     const [phase, setPhase] = useState<'text' | 'images' | 'complete'>('text');
     const [progress, setProgress] = useState(0);
@@ -43,6 +49,16 @@ export const StoryGenerating: React.FC = () => {
     const [owlMessageKey, setOwlMessageKey] = useState(OWL_MESSAGE_KEYS.text[0]);
 
     const isGenerating = useRef(false);
+
+    // Pre-compute sparkle stars for complete phase (must be called unconditionally)
+    const completeSparkles = useMemo(() => {
+        return [...Array(6)].map((_, i) => {
+            const left = 20 + Math.random() * 60;
+            const top = 10 + Math.random() * 60;
+            const color = ['#facc15', '#f472b6', '#60a5fa'][i % 3];
+            return { left, top, color };
+        });
+    }, []);
 
     // Update owl message based on phase
     useEffect(() => {
@@ -72,23 +88,47 @@ export const StoryGenerating: React.FC = () => {
                 setPhase('text');
                 setStatusMessage(t('gen_creating_story', { name: state.variables.childName }));
 
-                const story = await generateCompleteStory(
-                    { ...state.variables, targetLanguage: targetLanguage || 'English' },
-                    (pageNum, total, imageProgress) => {
-                        // Progress callback
-                        if (imageProgress !== undefined) {
-                            // Image generation phase
-                            setPhase('images');
-                            setPageProgress({ current: pageNum, total });
-                            setProgress(Math.round((pageNum / total) * 100));
-                            setStatusMessage(t('gen_drawing_images', { current: String(pageNum), total: String(total) }));
-                        } else {
-                            // Text generation phase
-                            setProgress(30);
-                            setStatusMessage(t('gen_writing_story'));
+                let story;
+
+                if (state.isPhotoBased && state.photoBase64) {
+                    // Photo-based story generation
+                    story = await generatePhotoBasedStory(
+                        {
+                            ...state.variables,
+                            targetLanguage: targetLanguage || 'English',
+                            photoBase64: state.photoBase64,
+                            photoMimeType: state.photoMimeType,
+                            photoDescription: state.photoDescription,
+                        },
+                        (pageNum, total, imageProgress) => {
+                            if (imageProgress !== undefined) {
+                                setPhase('images');
+                                setPageProgress({ current: pageNum, total });
+                                setProgress(Math.round((pageNum / total) * 100));
+                                setStatusMessage(t('gen_drawing_images', { current: String(pageNum), total: String(total) }));
+                            } else {
+                                setProgress(30);
+                                setStatusMessage(t('gen_writing_story'));
+                            }
                         }
-                    }
-                );
+                    );
+                } else {
+                    // Standard story generation
+                    story = await generateCompleteStory(
+                        { ...state.variables, targetLanguage: targetLanguage || 'English' },
+                        (pageNum, total, imageProgress) => {
+                            if (imageProgress !== undefined) {
+                                setPhase('images');
+                                setPageProgress({ current: pageNum, total });
+                                setProgress(Math.round((pageNum / total) * 100));
+                                setStatusMessage(t('gen_drawing_images', { current: String(pageNum), total: String(total) }));
+                            } else {
+                                setProgress(30);
+                                setStatusMessage(t('gen_writing_story'));
+                            }
+                        }
+                    );
+                }
 
                 setPhase('complete');
                 setProgress(100);
@@ -321,36 +361,29 @@ export const StoryGenerating: React.FC = () => {
                         {/* Sparkles for complete phase */}
                         {phase === 'complete' && (
                             <>
-                                {useMemo(() => {
-                                    return [...Array(6)].map((_, i) => {
-                                        const left = 20 + Math.random() * 60;
-                                        const top = 10 + Math.random() * 60;
-                                        const color = ['#facc15', '#f472b6', '#60a5fa'][i % 3];
-                                        return (
-                                            <motion.div
-                                                key={i}
-                                                className="absolute"
-                                                style={{
-                                                    left: `${left}%`,
-                                                    top: `${top}%`,
-                                                    color,
-                                                }}
-                                                animate={{
-                                                    opacity: [0, 1, 0],
-                                                    scale: [0, 1.5, 0],
-                                                    y: [0, -30, 0],
-                                                }}
-                                                transition={{
-                                                    duration: 1,
-                                                    repeat: Infinity,
-                                                    delay: i * 0.2,
-                                                }}
-                                            >
-                                                <Star size={20} fill="currentColor" />
-                                            </motion.div>
-                                        );
-                                    });
-                                }, [])}
+                                {completeSparkles.map((sparkle, i) => (
+                                    <motion.div
+                                        key={i}
+                                        className="absolute"
+                                        style={{
+                                            left: `${sparkle.left}%`,
+                                            top: `${sparkle.top}%`,
+                                            color: sparkle.color,
+                                        }}
+                                        animate={{
+                                            opacity: [0, 1, 0],
+                                            scale: [0, 1.5, 0],
+                                            y: [0, -30, 0],
+                                        }}
+                                        transition={{
+                                            duration: 1,
+                                            repeat: Infinity,
+                                            delay: i * 0.2,
+                                        }}
+                                    >
+                                        <Star size={20} fill="currentColor" />
+                                    </motion.div>
+                                ))}
                             </>
                         )}
                     </motion.div>

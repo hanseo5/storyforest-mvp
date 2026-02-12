@@ -11,6 +11,8 @@ const ThreeDRenderImg = '/styles/3d_render.png';
 const VintageStorybookImg = '/styles/vintage_storybook.png';
 import { generateStoryMetadata, refineCharacterDescription } from '../services/geminiService';
 import { generateImage, compressBase64Image } from '../services/imageService';
+import { useTranslation } from '../hooks/useTranslation';
+import { toast } from '../components/Toast';
 import type { DraftBook, Character } from '../types/draft';
 
 interface LocationState {
@@ -30,10 +32,11 @@ export const MetadataEditor: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const state = location.state as LocationState;
+    const { t } = useTranslation();
 
     const [title, setTitle] = useState(state?.metadata?.title || '');
     const [style, setStyle] = useState(state?.metadata?.style || 'Soft Watercolor');
-    const [pageCount, setPageCount] = useState(state?.metadata?.pages || 50);
+    const [pageCount, setPageCount] = useState(state?.metadata?.pages || 12);
     const [isRegenerating, setIsRegenerating] = useState(false);
 
     // Multiple characters state
@@ -141,7 +144,7 @@ export const MetadataEditor: React.FC = () => {
             const newMetadata = await generateStoryMetadata(state.prompt);
             setTitle(newMetadata.title);
             setStyle(newMetadata.style);
-            setPageCount(newMetadata.pages || 50);
+            setPageCount(newMetadata.pages || 12);
 
             if (newMetadata.characters && newMetadata.characters.length > 0) {
                 setCharacters(newMetadata.characters.map((c: { name: string; description: string }, i: number) => ({
@@ -153,7 +156,7 @@ export const MetadataEditor: React.FC = () => {
             }
         } catch (error) {
             console.error('[MetadataEditor] Regeneration failed:', error);
-            alert('Failed to regenerate. Please try again.');
+            toast.error(t('meta_regen_failed'));
         } finally {
             setIsRegenerating(false);
         }
@@ -161,7 +164,7 @@ export const MetadataEditor: React.FC = () => {
 
     const handleGenerateImageForCharacter = async (char: Character) => {
         if (!char.description || !style) {
-            alert('Please fill in character description and art style first.');
+            toast.warning(t('meta_desc_image_first'));
             return;
         }
 
@@ -181,7 +184,7 @@ export const MetadataEditor: React.FC = () => {
             handleUpdateCharacter(char.id, { imageUrl });
         } catch (error) {
             console.error('[MetadataEditor] Image generation failed:', error);
-            alert('Failed to generate image. Please try again.');
+            toast.error(t('meta_image_gen_failed'));
         } finally {
             setGeneratingMap(prev => ({ ...prev, [char.id]: false }));
         }
@@ -189,7 +192,7 @@ export const MetadataEditor: React.FC = () => {
 
     const handleConfirm = () => {
         if (characters.some(c => !c.imageUrl)) {
-            alert('Please generate or upload images for all characters first.');
+            toast.warning(t('meta_need_all_images'));
             return;
         }
 
@@ -213,12 +216,12 @@ export const MetadataEditor: React.FC = () => {
         return (
             <div className="min-h-screen bg-indigo-50 flex items-center justify-center p-6">
                 <div className="text-center bg-white p-8 rounded-2xl shadow-xl">
-                    <p className="text-gray-600 mb-6">No metadata found. Please start from Create Story.</p>
+                    <p className="text-gray-600 mb-6">{t('meta_no_metadata')}</p>
                     <button
                         onClick={() => navigate('/create')}
                         className="px-8 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-bold"
                     >
-                        Go to Create Story
+                        {t('meta_go_create')}
                     </button>
                 </div>
             </div>
@@ -234,7 +237,7 @@ export const MetadataEditor: React.FC = () => {
                 <div className="bg-white p-2 rounded-lg shadow-sm mr-3 group-hover:bg-indigo-50">
                     <ArrowLeft className="w-5 h-5" />
                 </div>
-                Back to Story Base
+                {t('meta_back_to_story')}
             </button>
 
             <div className="max-w-4xl mx-auto">
@@ -242,29 +245,29 @@ export const MetadataEditor: React.FC = () => {
                     <div className="bg-gradient-to-br from-purple-500 to-indigo-600 w-16 h-16 rounded-3xl mx-auto flex items-center justify-center mb-6 shadow-2xl rotate-3">
                         <Sparkles className="text-white w-8 h-8" />
                     </div>
-                    <h1 className="text-4xl font-extrabold text-gray-900 mb-3 tracking-tight">Story Universe Setup</h1>
-                    <p className="text-gray-500 text-lg">Define your characters and the world they live in</p>
+                    <h1 className="text-4xl font-extrabold text-gray-900 mb-3 tracking-tight">{t('meta_universe_setup')}</h1>
+                    <p className="text-gray-500 text-lg">{t('meta_universe_desc')}</p>
                 </div>
 
                 <div className="space-y-8">
                     {/* Title Section */}
                     <div className="bg-white rounded-3xl shadow-xl shadow-indigo-100/50 p-8 border border-white">
                         <label className="block text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">
-                            Story Title
+                            {t('meta_story_title')}
                         </label>
                         <input
                             type="text"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 text-2xl font-black text-gray-800 placeholder-gray-300"
-                            placeholder="A Magical Adventure..."
+                            placeholder={t('meta_title_placeholder')}
                         />
                     </div>
 
                     {/* Art Style Section */}
                     <div className="bg-white rounded-3xl shadow-xl shadow-indigo-100/50 p-8 border border-white">
                         <label className="block text-sm font-bold text-gray-400 uppercase tracking-widest mb-6">
-                            Visual Universe Style
+                            {t('meta_visual_style')}
                         </label>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
                             {[
@@ -311,14 +314,14 @@ export const MetadataEditor: React.FC = () => {
                         <div className="flex items-center justify-between px-2">
                             <label className="text-xl font-black text-gray-800 flex items-center gap-3">
                                 <User className="text-indigo-600" />
-                                Character References
+                                {t('meta_character_refs')}
                             </label>
                             <button
                                 onClick={handleAddCharacter}
                                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95"
                             >
                                 <Plus size={18} />
-                                Add Character
+                                {t('meta_add_character')}
                             </button>
                         </div>
 
@@ -366,7 +369,7 @@ export const MetadataEditor: React.FC = () => {
                                                     {generatingMap[char.id] ? (
                                                         <div className="space-y-3">
                                                             <Loader className="w-8 h-8 text-indigo-600 animate-spin mx-auto" />
-                                                            <p className="text-xs font-bold text-gray-400">Drawing character <br />with magic...</p>
+                                                            <p className="text-xs font-bold text-gray-400">{t('meta_drawing_magic')}</p>
                                                         </div>
                                                     ) : (
                                                         <div className="space-y-4">
@@ -379,7 +382,7 @@ export const MetadataEditor: React.FC = () => {
                                                                     disabled={!char.description || !style || generatingMap[char.id]}
                                                                     className="text-xs font-bold text-indigo-600 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 disabled:opacity-30 transition-all"
                                                                 >
-                                                                    Generate AI Character
+                                                                    {t('meta_gen_ai_char')}
                                                                 </button>
                                                                 <button
                                                                     onClick={() => {
@@ -388,7 +391,7 @@ export const MetadataEditor: React.FC = () => {
                                                                     }}
                                                                     className="text-xs font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl hover:bg-emerald-100 transition-all"
                                                                 >
-                                                                    Upload Image
+                                                                    {t('meta_upload_image')}
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -403,13 +406,13 @@ export const MetadataEditor: React.FC = () => {
                                                 value={char.name}
                                                 onChange={(e) => handleUpdateCharacter(char.id, { name: e.target.value })}
                                                 className="w-full bg-gray-50 border-none rounded-xl px-4 py-2 font-bold text-gray-800 placeholder-gray-300 focus:ring-2 focus:ring-indigo-500"
-                                                placeholder="Character Name"
+                                                placeholder={t('meta_char_name_placeholder')}
                                             />
                                             <textarea
                                                 value={char.description}
                                                 onChange={(e) => handleTextareaChange(char.id, e.target.value)}
                                                 className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 text-sm text-gray-600 placeholder-gray-300 focus:ring-2 focus:ring-indigo-500 min-h-[100px] resize-none"
-                                                placeholder="Describe appearance, personality, etc. in detail..."
+                                                placeholder={t('meta_char_desc_placeholder')}
                                             />
 
                                             {/* Slash Command Overlay */}
@@ -418,7 +421,7 @@ export const MetadataEditor: React.FC = () => {
                                                     <div className="bg-indigo-600 rounded-2xl shadow-2xl p-4 border border-indigo-400">
                                                         <div className="flex items-center gap-2 mb-2 text-white/80 text-[10px] font-bold uppercase tracking-widest">
                                                             <Sparkles size={12} className="text-white" />
-                                                            AI Character Brainstorming
+                                                            {t('meta_ai_brainstorm')}
                                                         </div>
                                                         <div className="relative">
                                                             <input
@@ -430,7 +433,7 @@ export const MetadataEditor: React.FC = () => {
                                                                     if (e.key === 'Enter') handleRefineCharacter(char.id);
                                                                     if (e.key === 'Escape') setSlashCommandCharId(null);
                                                                 }}
-                                                                placeholder="e.g., Add a mysterious forest spirit vibe"
+                                                                placeholder={t('meta_brainstorm_placeholder')}
                                                                 className="w-full bg-indigo-700/50 border-none rounded-xl px-4 py-2 text-sm text-white placeholder-indigo-300 focus:ring-1 focus:ring-white"
                                                             />
                                                             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -443,7 +446,7 @@ export const MetadataEditor: React.FC = () => {
                                                         </div>
                                                         <div className="mt-2 flex justify-between items-center text-[9px] text-indigo-200">
                                                             <span>ESC to cancel</span>
-                                                            <span>Gemini generates details instantly</span>
+                                                            <span>{t('meta_brainstorm_hint')}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -463,14 +466,14 @@ export const MetadataEditor: React.FC = () => {
                             className="flex-1 flex items-center justify-center gap-3 bg-white border-2 border-slate-100 text-slate-500 py-5 rounded-3xl font-black text-lg hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all disabled:opacity-50"
                         >
                             <RefreshCw className={isRegenerating ? 'animate-spin' : ''} size={24} />
-                            {isRegenerating ? 'REIMAGINING...' : 'REGENERATE STORY AI'}
+                            {isRegenerating ? t('meta_regenerating') : t('meta_regenerate_ai')}
                         </button>
                         <button
                             onClick={handleConfirm}
                             disabled={characters.some(c => !c.imageUrl) || !title}
                             className="flex-1 flex items-center justify-center gap-3 bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg hover:bg-indigo-700 shadow-2xl shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50"
                         >
-                            CONFIRM & START WRITING
+                            {t('meta_confirm_start')}
                             <Sparkles size={24} />
                         </button>
                     </div>

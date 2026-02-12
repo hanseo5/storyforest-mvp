@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Trash2, Edit3, Loader, BookOpen, AlertTriangle, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getPublishedBooks, deleteBook } from '../services/bookService';
+import { getPublishedBooks, deleteBook, getBookById } from '../services/bookService';
 import { useStore } from '../store';
+import { useTranslation } from '../hooks/useTranslation';
 import type { Book } from '../types';
+import type { DraftBook } from '../types/draft';
 
 interface BookManagementModalProps {
     onClose: () => void;
@@ -13,6 +15,7 @@ interface BookManagementModalProps {
 export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClose }) => {
     const navigate = useNavigate();
     const user = useStore((state) => state.user);
+    const { t, targetLanguage } = useTranslation();
     const [books, setBooks] = useState<Book[]>([]);
     const [loading, setLoading] = useState(true);
     const [deleting, setDeleting] = useState<string | null>(null);
@@ -54,7 +57,6 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
         try {
             await deleteBook(bookIdToDelete);
             setBooks(books.filter(b => b.id !== bookIdToDelete));
-            console.log('[BookManagement] Book deleted successfully:', bookIdToDelete);
         } catch (e) {
             console.error('[BookManagement] Delete failed:', e);
         } finally {
@@ -67,13 +69,46 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
         setConfirmDeleteTitle('');
     };
 
-    const handleEdit = (bookId: string) => {
+    const handleEdit = async (bookId: string) => {
+        // Load full book with pages, convert to DraftBook format, open in StoryEditor
+        const fullBook = await getBookById(bookId);
+        if (!fullBook) return;
+
+        const existingDraft: DraftBook = {
+            id: undefined, // Not a draft — will create new draft on save
+            title: fullBook.title,
+            authorId: fullBook.authorId,
+            protagonist: fullBook.description || '',
+            protagonistImage: fullBook.coverUrl || null,
+            characters: [],
+            style: fullBook.style || 'Soft Watercolor',
+            pageCount: fullBook.pages.length,
+            prompt: '',
+            status: 'ready',
+            createdAt: fullBook.createdAt,
+            pages: fullBook.pages.map(p => ({
+                pageNumber: p.pageNumber,
+                text: p.text,
+                imageUrl: p.imageUrl,
+                imageStatus: 'complete' as const,
+            })),
+            originalLanguage: fullBook.originalLanguage,
+        };
+
         onClose();
-        navigate(`/reader/${bookId}`);
+        navigate('/editor/story', {
+            state: {
+                existingDraft,
+                protagonistImage: fullBook.coverUrl,
+                editingBookId: bookId, // So StoryEditor can update instead of create
+            }
+        });
     };
 
     const formatDate = (timestamp: number) => {
-        return new Date(timestamp).toLocaleDateString('ko-KR', {
+        const lang = targetLanguage || 'English';
+        const locale = lang === 'Korean' ? 'ko-KR' : lang === 'Japanese' ? 'ja-JP' : 'en-US';
+        return new Date(timestamp).toLocaleDateString(locale, {
             year: 'numeric',
             month: 'short',
             day: 'numeric'
@@ -88,7 +123,7 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
                 <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 flex justify-between items-center text-white">
                     <h2 className="text-xl font-bold flex items-center gap-2">
                         <BookOpen className="w-6 h-6" />
-                        내 동화책 관리
+                        {t('bm_my_books')}
                     </h2>
                     <button onClick={onClose} className="hover:bg-white/20 p-2 rounded-full transition-colors">
                         <X size={24} />
@@ -100,13 +135,13 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
                     {loading ? (
                         <div className="flex flex-col items-center justify-center py-12">
                             <Loader className="animate-spin text-amber-500 mb-3" size={40} />
-                            <p className="text-gray-500">동화책을 불러오는 중...</p>
+                            <p className="text-gray-500">{t('bm_loading')}</p>
                         </div>
                     ) : books.length === 0 ? (
                         <div className="text-center py-12 text-gray-400">
                             <BookOpen size={48} className="mx-auto mb-3 opacity-50" />
-                            <p className="text-lg font-medium">아직 만든 동화책이 없어요</p>
-                            <p className="text-sm mt-1">마법 동화 만들기로 첫 동화책을 만들어보세요!</p>
+                            <p className="text-lg font-medium">{t('bm_no_books')}</p>
+                            <p className="text-sm mt-1">{t('bm_no_books_hint')}</p>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -148,7 +183,7 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
                                         <button
                                             onClick={() => handleEdit(book.id)}
                                             className="p-2 text-amber-600 hover:text-amber-800 hover:bg-amber-100 rounded-full transition-colors"
-                                            title="보기"
+                                            title={t('bm_view')}
                                         >
                                             <Edit3 size={18} />
                                         </button>
@@ -156,7 +191,7 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
                                             onClick={(e) => handleDeleteClick(e, book.id, book.title)}
                                             disabled={deleting === book.id}
                                             className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50"
-                                            title="삭제"
+                                            title={t('bm_delete')}
                                         >
                                             {deleting === book.id ? (
                                                 <Loader size={18} className="animate-spin" />
@@ -174,7 +209,7 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
                 {/* Footer */}
                 <div className="p-4 border-t border-amber-100 bg-amber-50/50">
                     <p className="text-xs text-amber-600 text-center">
-                        총 {books.length}권의 동화책
+                        {t('bm_total_books').replace('{count}', String(books.length))}
                     </p>
                 </div>
             </div>
@@ -197,7 +232,7 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
                             {/* Header */}
                             <div className="bg-gradient-to-r from-red-500 to-orange-500 p-5 text-white text-center">
                                 <AlertTriangle className="w-12 h-12 mx-auto mb-2" />
-                                <h3 className="text-xl font-bold">삭제 확인</h3>
+                                <h3 className="text-xl font-bold">{t('bm_confirm_delete')}</h3>
                             </div>
 
                             {/* Content */}
@@ -206,10 +241,10 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
                                     <strong className="text-gray-900">"{confirmDeleteTitle}"</strong>
                                 </p>
                                 <p className="text-gray-600">
-                                    이 동화책을 삭제하시겠습니까?
+                                    {t('bm_delete_question')}
                                 </p>
                                 <p className="text-sm text-red-500 mt-2">
-                                    ⚠️ 이 작업은 되돌릴 수 없습니다.
+                                    ⚠️ {t('bm_delete_warning')}
                                 </p>
                             </div>
 
@@ -219,13 +254,13 @@ export const BookManagementModal: React.FC<BookManagementModalProps> = ({ onClos
                                     onClick={handleCancelDelete}
                                     className="flex-1 py-3 px-4 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:bg-gray-100 transition-colors"
                                 >
-                                    취소
+                                    {t('cancel')}
                                 </button>
                                 <button
                                     onClick={handleConfirmDelete}
                                     className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold hover:from-red-600 hover:to-orange-600 transition-all shadow-lg"
                                 >
-                                    삭제
+                                    {t('bm_delete')}
                                 </button>
                             </div>
                         </motion.div>

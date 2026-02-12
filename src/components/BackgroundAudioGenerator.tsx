@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import { generateAllBooksAudio, generateBookAudio } from '../services/bookService';
 import { deleteVoice } from '../services/elevenLabsService';
+import { getSavedVoiceById, reCloneVoiceFromSample } from '../services/voiceService';
+import { useTranslation } from '../hooks/useTranslation';
 import { Loader2, CheckCircle2 } from 'lucide-react';
 
 export const BackgroundAudioGenerator: React.FC = () => {
@@ -14,6 +16,7 @@ export const BackgroundAudioGenerator: React.FC = () => {
         setGenerationProgress
     } = useStore();
 
+    const { t } = useTranslation();
     const isProcessingRef = useRef(false);
 
     useEffect(() => {
@@ -30,7 +33,6 @@ export const BackgroundAudioGenerator: React.FC = () => {
 
             try {
                 setGenerating(true);
-                console.log('[Background] Starting task:', task);
 
                 if (task.type === 'all') {
                     await generateAllBooksAudio(task.voiceId, (progress) => {
@@ -41,14 +43,25 @@ export const BackgroundAudioGenerator: React.FC = () => {
                         });
                     });
                 } else if (task.type === 'single' && task.bookId) {
-                    // For single book, we can still report progress if we modify generateBookAudio
-                    // But for now, just run it
                     await generateBookAudio(task.bookId, task.voiceId);
+                } else if (task.type === 'single-reclone' && task.bookId && task.savedVoiceId) {
+                    // Re-clone voice from stored sample, generate audio, then delete temp slot
+                    const savedVoice = await getSavedVoiceById(task.savedVoiceId);
+                    if (savedVoice?.sampleStoragePath) {
+                        const tempVoiceId = await reCloneVoiceFromSample(savedVoice);
+                        try {
+                            await generateBookAudio(task.bookId, tempVoiceId);
+                        } finally {
+                            // Always clean up the temporary ElevenLabs slot
+                            await deleteVoice(tempVoiceId).catch(() => {});
+                        }
+                    }
                 }
 
-                // Cleanup voice slot after generation
-                console.log('[Background] Task complete, deleting voice slot:', task.voiceId);
-                await deleteVoice(task.voiceId);
+                // Cleanup voice slot after generation (for 'all' and 'single' types)
+                if (task.type !== 'single-reclone') {
+                    await deleteVoice(task.voiceId);
+                }
 
             } catch (error) {
                 console.error('[Background] Error processing task:', error);
@@ -85,10 +98,10 @@ export const BackgroundAudioGenerator: React.FC = () => {
                     </div>
                     <div className="flex-1">
                         <h4 className="text-sm font-bold text-gray-800">
-                            {isGenerating ? '오디오 생성 중...' : '대기 중...'}
+                            {isGenerating ? t('bg_generating') : t('bg_waiting')}
                         </h4>
                         {pendingTasks.length > 0 && (
-                            <p className="text-[10px] text-gray-400">남은 작업: {pendingTasks.length}개</p>
+                            <p className="text-[10px] text-gray-400">{t('bg_remaining').replace('{count}', String(pendingTasks.length))}</p>
                         )}
                     </div>
                 </div>
@@ -110,7 +123,7 @@ export const BackgroundAudioGenerator: React.FC = () => {
                             />
                         </div>
                         <p className="text-[10px] text-gray-400 text-center">
-                            창을 닫아도 백그라운드에서 계속 생성됩니다.
+                            {t('bg_continues')}
                         </p>
                     </div>
                 )}

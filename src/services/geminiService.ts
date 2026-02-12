@@ -1,52 +1,16 @@
+/**
+ * Gemini Service — all calls go through Cloud Functions (geminiGenerate proxy).
+ * The Gemini API key NEVER leaves the server.
+ */
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+import { geminiGenerateSecure } from './cloudFunctionsService';
 
+// ==================== Story Metadata ====================
 
 export const generateStoryMetadata = async (prompt: string) => {
-    // Mock simulation if no API key
-    if (!API_KEY) {
-        console.warn("[GeminiService] No API key found, using enhanced mock response");
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Extract key concepts from prompt for better mock data
-        const words = prompt.toLowerCase().split(' ');
-        const firstWord = words[0] || 'adventure';
-
-        const capitalizedWord = firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
-
-        return {
-            title: `The ${capitalizedWord}'s Magical Journey`,
-            description: `A brave young ${firstWord} with sparkling eyes and a curious heart, wearing a cozy scarf that changes colors with emotions.`,
-            characters: [
-                {
-                    id: '1',
-                    name: `Little ${capitalizedWord}`,
-                    description: `A brave young ${firstWord} with sparkling eyes and a curious heart, wearing a cozy scarf that changes colors with emotions. This character is small but mighty, full of wonder and determination.`,
-                    imageUrl: null
-                },
-                {
-                    id: '2',
-                    name: 'Luna',
-                    description: 'A wise old owl with silver feathers and glowing yellow eyes who guides the way through the forest.',
-                    imageUrl: null
-                }
-            ],
-            style: "Soft watercolor with gentle pastel tones and dreamy lighting",
-            pages: 50
-        };
-    }
-
     try {
-        console.log('[GeminiService] Starting API call with prompt:', prompt);
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `You are a world-class children's picture book author and character designer. Create a poetic and deeply evocative story concept based on: "${prompt}"
+        const text = await geminiGenerateSecure(
+            `You are a world-class children's picture book author and character designer. Create a poetic and deeply evocative story concept based on: "${prompt}"
 
 TITLE (3-7 words, captivating and poetic)
 
@@ -58,150 +22,74 @@ CHARACTER DESCRIPTION (6-8 sentences, professional author quality):
 - Emotional expression: How does their heart show on their sleeve?
 
 RETURN ONLY THIS JSON (one line, properly escaped):
-{"title": "Story Title", "description": "Professional poetic description", "style": "Chosen Style", "pages": 50}`
-                    }]
-                }],
-                generationConfig: {
-                    temperature: 0.7,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 2048,
-                },
-                safetySettings: [
-                    {
-                        category: "HARM_CATEGORY_HARASSMENT",
-                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                    },
-                    {
-                        category: "HARM_CATEGORY_HATE_SPEECH",
-                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                    },
-                    {
-                        category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                    },
-                    {
-                        category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                    }
-                ]
-            })
-        });
+{"title": "Story Title", "description": "Professional poetic description", "style": "Chosen Style", "pages": 50}`,
+            { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 2048 }
+        );
 
-        console.log('[GeminiService] Response status:', response.status);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[GeminiService] HTTP error response:', errorText);
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('[GeminiService] Full API response:', JSON.stringify(data, null, 2));
-
-        if (!data.candidates || data.candidates.length === 0) {
-            console.error('[GeminiService] No candidates in response');
-            throw new Error("No candidates returned from Gemini");
-        }
-
-        const text = data.candidates[0].content.parts[0].text;
-        console.log('[GeminiService] Gemini Raw Response:', text);
-
-        // Flexible field extraction instead of strict JSON parsing
-        // This handles cases where Gemini doesn't return perfect JSON
-
+        // Parse JSON from response
         try {
-            // First try: Standard JSON parse
             let jsonStr = text.trim();
             jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
             const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                jsonStr = jsonMatch[0];
-            }
-
-            const parsedData = JSON.parse(jsonStr);
-            console.log('[GeminiService] Successfully parsed metadata via JSON:', parsedData);
-            return parsedData;
+            if (jsonMatch) jsonStr = jsonMatch[0];
+            return JSON.parse(jsonStr);
         } catch (jsonError) {
             console.warn('[GeminiService] JSON parse failed, using field extraction...', jsonError);
 
-            // Fallback: Extract fields individually using more flexible regex
             const titleMatch = text.match(/"title"\s*:\s*"([^"]+)"/i) ||
                 text.match(/["']title["']\s*:\s*["']([^"']+)["']/i);
-
             const styleMatch = text.match(/"style"\s*:\s*"([^"]+)"/i) ||
                 text.match(/["']style["']\s*:\s*["']([^"']+)["']/i);
-
             const pagesMatch = text.match(/"pages"\s*:\s*(\d+)/i);
 
             if (titleMatch && styleMatch) {
-                const extracted = {
+                return {
                     title: titleMatch[1].trim(),
                     description: '',
                     characters: [] as Array<{ id: string; name: string; description: string; imageUrl?: string | null }>,
                     style: styleMatch[1].trim(),
                     pages: pagesMatch ? parseInt(pagesMatch[1]) : 50
                 };
-
-                console.log('[GeminiService] Successfully extracted metadata via regex:', extracted);
-                return extracted;
             }
-
-            console.error('[GeminiService] Field extraction failed');
             throw new Error('Failed to extract required fields from response');
         }
     } catch (error) {
         console.error('[GeminiService] Gemini API Error:', error);
-        console.warn('[GeminiService] Falling back to enhanced mock generation...');
-
-        // Enhanced Fallback Mock Data
+        console.warn('[GeminiService] Falling back to mock generation...');
         await new Promise(resolve => setTimeout(resolve, 1500));
 
-        // Extract key concepts from prompt
         const words = prompt.toLowerCase().split(' ');
         const firstWord = words[0] || 'adventure';
         const capitalizedWord = firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
 
-        const fallbackData = {
+        return {
             title: `${capitalizedWord}'s Wonderful Journey`,
             description: `A spirited young ${firstWord} with bright, curious eyes and a warm smile. This character has a distinctive appearance with colorful details and an adventurous spirit that shines through their every movement.`,
             style: "Watercolor with soft, warm tones and gentle lighting",
             pages: 50
         };
-        console.log('[GeminiService] Returning enhanced fallback data:', fallbackData);
-        return fallbackData;
     }
 };
 
+// ==================== Image Placeholder (no API call) ====================
+
 export const generateImagePlaceholder = (keyword: string) => {
     return `https://source.unsplash.com/800x600/?${encodeURIComponent(keyword)},illustration`;
-}
+};
 
-export const generateStoryPages = async (title: string, characters: Array<{ id: string; name: string; description: string; imageUrl?: string | null }>, style: string, pageCount: number = 50) => {
-    console.log('[GeminiService] Generating story pages...', { title, pageCount });
+// ==================== Story Pages ====================
 
+export const generateStoryPages = async (
+    title: string,
+    characters: Array<{ id: string; name: string; description: string; imageUrl?: string | null }>,
+    style: string,
+    pageCount: number = 50
+) => {
     const charactersContext = characters.map(c => `${c.name}: ${c.description}`).join('\n');
 
-    // Mock simulation if no API key
-    if (!API_KEY) {
-        console.warn('[GeminiService] Using mock pages response');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        return Array.from({ length: pageCount }, (_, i) => ({
-            pageNumber: i + 1,
-            text: `This is page ${i + 1} of the story "${title}".`
-        }));
-    }
-
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `You are an award-winning children's picture book author.
+        const text = await geminiGenerateSecure(
+            `You are an award-winning children's picture book author.
 
 Create a ${pageCount}-page story:
 Title: "${title}"
@@ -236,101 +124,33 @@ Visual Style: "${style}"
 
 Generate EXACTLY ${pageCount} pages.
 Return ONLY valid JSON (no markdown):
-[{"pageNumber": 1, "text": "..."}, {"pageNumber": 2, "text": "..."}, ...]`
-                    }]
-                }],
-                generationConfig: {
-                    temperature: 0.8,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 8192,
-                },
-                safetySettings: [
-                    {
-                        category: "HARM_CATEGORY_HARASSMENT",
-                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                    },
-                    {
-                        category: "HARM_CATEGORY_HATE_SPEECH",
-                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                    },
-                    {
-                        category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                    },
-                    {
-                        category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        threshold: "BLOCK_MEDIUM_AND_ABOVE"
-                    }
-                ]
-            })
-        });
+[{"pageNumber": 1, "text": "..."}, {"pageNumber": 2, "text": "..."}, ...]`,
+            { temperature: 0.8, topK: 40, topP: 0.95, maxOutputTokens: 8192 }
+        );
 
-        console.log('[GeminiService] Pages response status:', response.status);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[GeminiService] HTTP error response:', errorText);
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('[GeminiService] Pages API response received');
-
-        if (!data.candidates || data.candidates.length === 0) {
-            console.error('[GeminiService] No candidates in pages response');
-            throw new Error("No candidates returned from Gemini");
-        }
-
-        const text = data.candidates[0].content.parts[0].text;
-        console.log('[GeminiService] Pages raw response length:', text.length);
-        console.log('[GeminiService] Pages raw response preview:', text.substring(0, 500));
-
-        // Robust JSON extraction for pages array
+        // Parse JSON array from response
         let jsonStr = text.trim();
-
-        // Remove markdown code blocks if present
         jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
-
-        // Extract JSON array
         const jsonMatch = jsonStr.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-            jsonStr = jsonMatch[0];
-        }
-
-        // Clean up common issues
-        // Fix unescaped quotes in text values
+        if (jsonMatch) jsonStr = jsonMatch[0];
         jsonStr = jsonStr.replace(/("\w+"\s*:\s*")([^"]*)"([^"]*)"([^"]*")(\s*[,\]}])/g, '$1$2\\"$3\\"$4$5');
 
-        console.log('[GeminiService] Cleaned JSON preview:', jsonStr.substring(0, 500));
-
         try {
-            const pages = JSON.parse(jsonStr);
-            console.log('[GeminiService] Successfully parsed pages:', pages.length);
-            return pages;
-        } catch (error) {
-            const parseError = error as Error;
+            return JSON.parse(jsonStr);
+        } catch (parseError) {
             console.error('[GeminiService] JSON parse failed:', parseError);
-            console.error('[GeminiService] Failed at position:', parseError.message);
-
-            // Fallback: Try to extract pages using regex
             const pageMatches = [...text.matchAll(/"pageNumber"\s*:\s*(\d+)\s*,\s*"text"\s*:\s*"([^"]+)"/g)];
             if (pageMatches.length > 0) {
-                const extractedPages = pageMatches.map(match => ({
+                return pageMatches.map(match => ({
                     pageNumber: parseInt(match[1]),
                     text: match[2].replace(/\\"/g, '"').replace(/\\n/g, '\n')
                 }));
-                console.log('[GeminiService] Extracted pages via regex:', extractedPages.length);
-                return extractedPages;
             }
-
             throw parseError;
         }
     } catch (error) {
         console.error('[GeminiService] Error generating pages:', error);
         console.warn('[GeminiService] Falling back to mock pages...');
-
-        // Fallback mock pages
         await new Promise(resolve => setTimeout(resolve, 1000));
         return Array.from({ length: pageCount }, (_, i) => ({
             pageNumber: i + 1,
@@ -339,43 +159,28 @@ Return ONLY valid JSON (no markdown):
     }
 };
 
+// ==================== Page Image (no API call) ====================
+
 export const generatePageImage = (pageText: string, style: string): string => {
-    // Extract keywords from page text
     const words = pageText.toLowerCase().split(' ');
     const keywords = words
         .filter(w => w.length > 4 && !['this', 'that', 'with', 'from', 'were', 'been'].includes(w))
         .slice(0, 3)
         .join(',');
-
     const styleKeyword = style.toLowerCase().replace(/[^a-z\s]/g, '').split(' ')[0] || 'illustration';
-
     return `https://source.unsplash.com/1920x1080/?${keywords},${styleKeyword},children,story`;
 };
+
+// ==================== Image Prompt Suggestion ====================
 
 export const generateImagePromptSuggestion = async (
     pageText: string,
     style: string,
     characterDescription?: string
 ): Promise<string> => {
-    console.log('[GeminiService] Generating image prompt suggestion for:', pageText.substring(0, 50));
-
-    // Mock simulation if no API key
-    if (!API_KEY) {
-        console.warn('[GeminiService] No API key, returning enhanced page text');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        return `A children's book illustration in ${style} style: ${pageText}. Warm colors, child-friendly, detailed scene.`;
-    }
-
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `You are an expert at creating image generation prompts for children's book illustrations.
+        const text = await geminiGenerateSecure(
+            `You are an expert at creating image generation prompts for children's book illustrations.
 
 PAGE TEXT: "${pageText}"
 ART STYLE: ${style}
@@ -394,38 +199,17 @@ IMPORTANT:
 - Include atmospheric details (time of day, weather, ambient effects)
 - Keep it under 150 words
 
-Return ONLY the prompt text, no explanations or formatting.`
-                    }]
-                }],
-                generationConfig: {
-                    temperature: 0.7,
-                    topK: 40,
-                    topP: 0.95,
-                    maxOutputTokens: 512,
-                }
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.candidates || data.candidates.length === 0) {
-            throw new Error("No candidates returned from Gemini");
-        }
-
-        const suggestedPrompt = data.candidates[0].content.parts[0].text.trim();
-        console.log('[GeminiService] Generated prompt suggestion:', suggestedPrompt.substring(0, 100));
-
-        return suggestedPrompt;
+Return ONLY the prompt text, no explanations or formatting.`,
+            { temperature: 0.7, topK: 40, topP: 0.95, maxOutputTokens: 512 }
+        );
+        return text.trim();
     } catch (error) {
         console.error('[GeminiService] Error generating prompt suggestion:', error);
-        // Fallback: return enhanced page text
         return `A ${style} illustration for a children's book: ${pageText}. Warm and inviting atmosphere, child-friendly colors, detailed and expressive characters.`;
     }
 };
+
+// ==================== Refine Character Description ====================
 
 export const refineCharacterDescription = async (
     charName: string,
@@ -433,24 +217,9 @@ export const refineCharacterDescription = async (
     refinePrompt: string,
     artStyle: string
 ): Promise<string> => {
-    console.log('[GeminiService] Refining character description...', { charName, refinePrompt });
-
-    if (!API_KEY) {
-        console.warn('[GeminiService] No API key, returning mock refinement');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return `[REFINED] ${charName} is now even more magical! ${currentDescription} ${refinePrompt}. They have a sparkling aura and mysterious charm.`;
-    }
-
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `You are a Master-Class Children's Story Writer and Lead Character Designer. Your task is to transform simple ideas into a reach, professional **CHARACTER PERSONA DOCUMENT**.
+        const text = await geminiGenerateSecure(
+            `You are a Master-Class Children's Story Writer and Lead Character Designer. Your task is to transform simple ideas into a reach, professional **CHARACTER PERSONA DOCUMENT**.
 
 CHARACTER NAME: "${charName}"
 EXISTING CONTEXT: "${currentDescription}"
@@ -472,59 +241,30 @@ Create a masterpiece of character description that feels like it was written by 
 - If it is in English, use evocative, professional English prose.
 
 ### OUTPUT:
-Return ONLY the description text. No titles, no labels, no "Here is your description". Pure, professional prose.`
-                    }]
-                }],
-                generationConfig: {
-                    temperature: 0.8,
-                    maxOutputTokens: 1024,
-                },
-                safetySettings: [
-                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
-                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
-                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
-                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
-                ]
-            })
-        });
-
-        if (!response.ok) {
-            const errorBody = await response.text();
-            console.error('[GeminiService] Error response body:', errorBody);
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.error) {
-            console.error('[GeminiService] API returned error:', data.error);
-            throw new Error(data.error.message);
-        }
-
-        if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
-            console.warn('[GeminiService] No content candidates returned. Safety filter might have triggered.');
-            throw new Error("No candidates returned from Gemini");
-        }
-
-        return data.candidates[0].content.parts[0].text.trim();
+Return ONLY the description text. No titles, no labels, no "Here is your description". Pure, professional prose.`,
+            { temperature: 0.8, maxOutputTokens: 1024 },
+            [
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' }
+            ]
+        );
+        return text.trim();
     } catch (error) {
         console.error('[GeminiService] Error refining description:', error);
         return currentDescription + (refinePrompt ? " " + refinePrompt : "");
     }
 };
+
+// ==================== Continue Story ====================
+
 export const continueStory = async (
     title: string,
     characters: Array<{ id: string; name: string; description: string; imageUrl?: string | null }>,
     style: string,
     previousPages: { pageNumber: number; text: string }[]
 ): Promise<string> => {
-    console.log('[GeminiService] Continuing story...', { title, previousCount: previousPages.length });
-
-    if (!API_KEY) {
-        console.warn('[GeminiService] No API key, returning mock continuation');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        return `As the adventure continued, something unexpected happened... (Mock continuation for ${title})`;
-    }
-
     const charactersContext = characters.map(c => `${c.name}: ${c.description}`).join('\n');
     const recentPagesContext = previousPages
         .slice(-5)
@@ -532,13 +272,8 @@ export const continueStory = async (
         .join('\n');
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `You are a world-class children's book author. Write the NEXT SINGLE PAGE for this story.
+        const text = await geminiGenerateSecure(
+            `You are a world-class children's book author. Write the NEXT SINGLE PAGE for this story.
                         
 STORY TITLE: "${title}"
 VISUAL STYLE: "${style}"
@@ -554,43 +289,22 @@ WRITING RULES:
 3. Advance the plot naturally from the previous page.
 4. Maintain the consistent tone and style.
 
-Return ONLY the text for the next page.`
-                    }]
-                }],
-                generationConfig: { temperature: 0.8, maxOutputTokens: 256 }
-            })
-        });
-
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        return data.candidates[0].content.parts[0].text.trim();
+Return ONLY the text for the next page.`,
+            { temperature: 0.8, maxOutputTokens: 256 }
+        );
+        return text.trim();
     } catch (error) {
         console.error('[GeminiService] Continue story error:', error);
         return "The magic continued in the next chapter...";
     }
 };
 
-/**
- * Translate story content (title, description, or page text)
- * Maintains the poetic and child-friendly tone.
- */
+// ==================== Translate Content ====================
+
 export const translateContent = async (text: string, targetLanguage: string): Promise<string> => {
-    console.log(`[GeminiService] Translating content to ${targetLanguage}:`, text.substring(0, 50));
-
-    if (!API_KEY) {
-        console.warn('[GeminiService] No API key, returning mock translation');
-        await new Promise(resolve => setTimeout(resolve, 800));
-        return `[${targetLanguage}] ${text}`;
-    }
-
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `You are a world-class children's book translator. Translate the following text into ${targetLanguage}.
+        let result = await geminiGenerateSecure(
+            `You are a world-class children's book translator. Translate the following text into ${targetLanguage}.
                         
 TEXT TO TRANSLATE: "${text}"
 
@@ -599,51 +313,29 @@ RULES:
 2. Use natural, evocative phrasing in the target language.
 3. If the text is a title, make it a captivating title.
 4. If the text is page content, keep the same emotion and rhythm.
-5. Do NOT add any explanations or labels. Return ONLY the translated text.`
-                    }]
-                }],
-                generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
-            })
-        });
+5. Do NOT add any explanations or labels. Return ONLY the translated text.`,
+            { temperature: 0.7, maxOutputTokens: 1024 }
+        );
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-
-        if (!data.candidates || data.candidates.length === 0) {
-            throw new Error("No translation candidates returned");
-        }
-
-        let result = data.candidates[0].content.parts[0].text.trim();
-
-        // 1. Remove Markdown Bold/Italic wrappers often used by LLMs
-        // e.g. "**Translation:** ..." -> "Translation: ..."
-        // We do this first so the prefix matching below works cleanly
-
-        // 2. Remove common prefixes
+        // Clean up common LLM artifacts from translation
         const prefixesToRemove = [
             /^\*\*Translation:\*\*\s*/i,
             /^Translation:\s*/i,
             /^\*\*Translated:\*\*\s*/i,
             /^Translated:\s*/i,
-            /^\[.*?\]\s*/, // [Korean], [English] tags
+            /^\[.*?\]\s*/,
         ];
-
         for (const regex of prefixesToRemove) {
             result = result.replace(regex, '');
         }
-
-        // 3. Handle "Original -> Translated" pattern
-        // Sometimes Gemini returns "original text --> translated text"
         if (result.includes('-->')) {
             result = result.split('-->').pop()?.trim() || result;
         } else if (result.includes('->')) {
-            // Be careful with simple arrows, only strictly if it looks like a separator
             const parts = result.split('->');
             if (parts.length === 2) {
                 result = parts[1].trim();
             }
         }
-
         return result;
     } catch (error) {
         console.error('[GeminiService] Translation error:', error);
@@ -651,28 +343,17 @@ RULES:
     }
 };
 
+// ==================== Refine Story Text ====================
+
 export const refineStoryText = async (
     title: string,
     currentText: string,
     refinePrompt: string,
     style: string
 ): Promise<string> => {
-    console.log('[GeminiService] Refining story text...', { title, refinePrompt });
-
-    if (!API_KEY) {
-        console.warn('[GeminiService] No API key, returning mock refinement');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return `[REFINED] ${currentText} ${refinePrompt} (A more magical version)`;
-    }
-
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent?key=${API_KEY}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `You are a professional children's book editor. Refine the following page text based on the user's instructions.
+        const text = await geminiGenerateSecure(
+            `You are a professional children's book editor. Refine the following page text based on the user's instructions.
 
 STORY: "${title}"
 VISUAL STYLE: "${style}"
@@ -685,23 +366,17 @@ RULES:
 3. Follow the user's specific instruction precisely.
 4. If instructed in Korean, respond in Korean. If in English, respond in English.
 
-Return ONLY the refined text.`
-                    }]
-                }],
-                generationConfig: { temperature: 0.7, maxOutputTokens: 512 }
-            })
-        });
-
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        return data.candidates[0].content.parts[0].text.trim();
+Return ONLY the refined text.`,
+            { temperature: 0.7, maxOutputTokens: 512 }
+        );
+        return text.trim();
     } catch (error) {
         console.error('[GeminiService] Refine story text error:', error);
         return currentText;
     }
 };
 
-// ==================== NEW: Complete Story Generation ====================
+// ==================== Complete Story Generation (already uses CF) ====================
 
 interface StoryVariables {
     childName: string;
@@ -710,6 +385,7 @@ interface StoryVariables {
     message: string;
     customMessage?: string;
     targetLanguage?: string;
+    artStyle?: string;
 }
 
 interface GeneratedPage {
@@ -726,7 +402,19 @@ interface GeneratedStory {
 
 type ProgressCallback = (pageNum: number, total: number, imageProgress?: boolean) => void;
 
-// Interest emoji mapping for story generation
+const ART_STYLE_PROMPTS: Record<string, string> = {
+    watercolor: 'Soft watercolor with warm pastel tones and dreamy, gentle lighting',
+    cartoon: 'Bright colorful cartoon style with bold outlines and cheerful expressions',
+    crayon: 'Children\'s crayon drawing style with textured strokes and vivid colors',
+    digital: 'Clean digital illustration with smooth gradients and modern aesthetic',
+    pencil: 'Delicate pencil sketch with fine cross-hatching and soft shadows',
+    papercut: 'Layered paper cut-out collage style with textured paper and depth',
+};
+
+const getArtStylePrompt = (styleId?: string): string => {
+    return ART_STYLE_PROMPTS[styleId || 'watercolor'] || ART_STYLE_PROMPTS.watercolor;
+};
+
 const INTEREST_LABELS: Record<string, string> = {
     dinosaur: '공룡',
     car: '자동차',
@@ -742,7 +430,6 @@ const INTEREST_LABELS: Record<string, string> = {
     food: '음식',
 };
 
-// Message label mapping
 const MESSAGE_LABELS: Record<string, string> = {
     sleep: '오늘은 일찍 자자',
     eat: '편식하지 말자',
@@ -757,39 +444,34 @@ export const generateCompleteStory = async (
     variables: StoryVariables,
     onProgress?: ProgressCallback
 ): Promise<GeneratedStory> => {
-    console.log('[GeminiService] Generating complete story via Cloud Function for:', variables.childName);
-
-    // Import Cloud Functions service
     const { generateStorySecure } = await import('./cloudFunctionsService');
 
-    const pageCount = 12;
-    const style = 'Soft Watercolor with warm pastel tones';
+    const estimatedPages = 12;
+    const style = getArtStylePrompt(variables.artStyle);
 
     try {
-        onProgress?.(0, pageCount);
+        onProgress?.(0, estimatedPages);
 
-        // Call Cloud Function (API key is securely stored on server)
         const story = await generateStorySecure({
             childName: variables.childName,
             childAge: variables.childAge,
             interests: variables.interests,
             message: variables.message,
             customMessage: variables.customMessage,
-            targetLanguage: variables.targetLanguage || 'English'
+            targetLanguage: variables.targetLanguage || 'English',
+            artStyle: variables.artStyle,
         }, onProgress);
 
-        console.log('[GeminiService] Story generated via Cloud Function:', story.title);
         return story;
     } catch (error) {
         console.error('[GeminiService] Cloud Function error, falling back to mock:', error);
 
-        // Fallback to mock data if Cloud Function fails
         const interestLabels = variables.interests.map(id => INTEREST_LABELS[id] || id);
         const messageLabel = variables.message === 'custom'
             ? variables.customMessage
             : MESSAGE_LABELS[variables.message] || variables.message;
 
-        const mockPages = Array.from({ length: pageCount }, (_, i) => ({
+        const mockPages = Array.from({ length: 10 }, (_, i) => ({
             pageNumber: i + 1,
             text: getMockPageText(variables.childName, interestLabels, messageLabel || '', i + 1),
             imageUrl: undefined
@@ -801,15 +483,9 @@ export const generateCompleteStory = async (
             pages: mockPages
         };
     }
-}
+};
 
-// Helper function for mock story generation
-function getMockPageText(
-    childName: string,
-    interests: string[],
-    message: string,
-    pageNum: number
-): string {
+function getMockPageText(childName: string, interests: string[], message: string, pageNum: number): string {
     const mockTexts: Record<number, string> = {
         1: `어느 화창한 날, ${childName}이(가) 창밖을 바라보았어요.`,
         2: `"오늘은 특별한 모험을 떠나볼까?" ${childName}이(가) 생각했어요.`,
@@ -824,7 +500,78 @@ function getMockPageText(
         11: `모두가 ${childName}을(를) 응원했어요.`,
         12: `${message} - ${childName}은(는) 오늘 소중한 것을 배웠어요. 끝.`
     };
+    return mockTexts[pageNum] || `${childName}의 이야기 ${pageNum}페이지입니다.`;
+}
 
+// ==================== Photo-based Story Generation (already uses CF) ====================
+
+export const analyzePhoto = async (
+    _photoFile: File,
+    userDescription: string
+): Promise<string> => {
+    // Photo analysis is done server-side as part of generatePhotoBasedStory
+    return userDescription;
+};
+
+export const generatePhotoBasedStory = async (
+    variables: StoryVariables & { photoBase64?: string; photoMimeType?: string; photoDescription?: string },
+    onProgress?: ProgressCallback
+): Promise<GeneratedStory> => {
+    const { generatePhotoStorySecure } = await import('./cloudFunctionsService');
+
+    const estimatedPages = 12;
+    const style = getArtStylePrompt(variables.artStyle);
+
+    try {
+        onProgress?.(0, estimatedPages);
+
+        const story = await generatePhotoStorySecure({
+            childName: variables.childName,
+            childAge: variables.childAge,
+            interests: variables.interests,
+            message: variables.message,
+            customMessage: variables.customMessage,
+            targetLanguage: variables.targetLanguage || 'English',
+            artStyle: variables.artStyle,
+            photoBase64: variables.photoBase64,
+            photoMimeType: variables.photoMimeType,
+            photoDescription: variables.photoDescription,
+        }, onProgress);
+
+        return story;
+    } catch (error) {
+        console.error('[GeminiService] Cloud Function error, falling back to mock:', error);
+
+        const mockPages = Array.from({ length: 10 }, (_, i) => ({
+            pageNumber: i + 1,
+            text: getMockPhotoStoryText(variables.childName, variables.photoDescription || '', i + 1),
+            imageUrl: undefined
+        }));
+
+        return {
+            title: `${variables.childName}의 특별한 하루`,
+            style,
+            pages: mockPages
+        };
+    }
+};
+
+function getMockPhotoStoryText(childName: string, photoDescription: string, pageNum: number): string {
+    const context = photoDescription || '특별한 하루';
+    const mockTexts: Record<number, string> = {
+        1: `어느 특별한 날, ${childName}이(가) ${context}에서 신나는 하루를 보내고 있었어요.`,
+        2: `"와! 정말 재미있다!" ${childName}이(가) 환하게 웃었어요.`,
+        3: `그때 반짝이는 무언가가 ${childName}의 눈앞에 나타났어요!`,
+        4: `"이건 뭐지?" ${childName}이(가) 조심스럽게 다가갔어요.`,
+        5: `알고 보니 마법의 요정이 ${childName}을(를) 모험으로 초대하고 있었어요.`,
+        6: `${childName}은(는) 용기를 내어 요정의 손을 잡았어요.`,
+        7: `마법의 세계에서 신기한 것들을 많이 보았어요!`,
+        8: `"우리 함께라면 무엇이든 할 수 있어!" 요정이 말했어요.`,
+        9: `${childName}은(는) 새로운 친구들과 함께 즐거운 시간을 보냈어요.`,
+        10: `모험이 끝나고, ${childName}은(는) 소중한 것을 깨달았어요.`,
+        11: `"오늘 정말 행복했어!" ${childName}이(가) 말했어요.`,
+        12: `${childName}은(는) 오늘의 특별한 추억을 마음속에 간직했어요. 끝. 💫`
+    };
     return mockTexts[pageNum] || `${childName}의 이야기 ${pageNum}페이지입니다.`;
 }
 

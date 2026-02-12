@@ -32,15 +32,24 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
-};
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.deleteVoiceFunction = exports.generateSpeechFunction = exports.addVoiceFunction = exports.registerAdminLogin = exports.geminiGenerate = exports.generateImageCF = exports.translateContent = exports.generatePhotoStory = exports.generateStory = exports.generateAudio = exports.registerVoice = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Initialize admin app once here
 admin.initializeApp();
-__exportStar(require("./registerVoice"), exports);
-__exportStar(require("./generateAudio"), exports);
-__exportStar(require("./geminiProxy"), exports);
-__exportStar(require("./elevenlabs"), exports);
+var registerVoice_1 = require("./registerVoice");
+Object.defineProperty(exports, "registerVoice", { enumerable: true, get: function () { return registerVoice_1.registerVoice; } });
+var generateAudio_1 = require("./generateAudio");
+Object.defineProperty(exports, "generateAudio", { enumerable: true, get: function () { return generateAudio_1.generateAudio; } });
+var geminiProxy_1 = require("./geminiProxy");
+Object.defineProperty(exports, "generateStory", { enumerable: true, get: function () { return geminiProxy_1.generateStory; } });
+Object.defineProperty(exports, "generatePhotoStory", { enumerable: true, get: function () { return geminiProxy_1.generatePhotoStory; } });
+Object.defineProperty(exports, "translateContent", { enumerable: true, get: function () { return geminiProxy_1.translateContent; } });
+Object.defineProperty(exports, "generateImageCF", { enumerable: true, get: function () { return geminiProxy_1.generateImageCF; } });
+Object.defineProperty(exports, "geminiGenerate", { enumerable: true, get: function () { return geminiProxy_1.geminiGenerate; } });
+Object.defineProperty(exports, "registerAdminLogin", { enumerable: true, get: function () { return geminiProxy_1.registerAdminLogin; } });
+var elevenlabs_1 = require("./elevenlabs");
+Object.defineProperty(exports, "addVoiceFunction", { enumerable: true, get: function () { return elevenlabs_1.addVoiceFunction; } });
+Object.defineProperty(exports, "generateSpeechFunction", { enumerable: true, get: function () { return elevenlabs_1.generateSpeechFunction; } });
+Object.defineProperty(exports, "deleteVoiceFunction", { enumerable: true, get: function () { return elevenlabs_1.deleteVoiceFunction; } });
 //# sourceMappingURL=index.js.map
