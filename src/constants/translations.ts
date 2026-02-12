@@ -86,17 +86,13 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
         read_story: "Read a Story",
         read_story_desc: "Explore available books",
         continue_editing: "Continue Editing",
-        no_drafts: "No saved drafts yet. Create a story and save it to continue later!",
         pages: "pages",
-        delete_draft_confirm: "Are you sure you want to delete this draft?",
         draft_not_found: "Draft not found",
         failed_load_draft: "Failed to load draft",
         failed_delete_draft: "Failed to delete draft",
 
         // Library
         library_title: "Story Library",
-        translating_library: "Translating Library...",
-        translating: "Translating...",
         open: "Open",
         settings: "Settings",
 
@@ -572,17 +568,13 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
         read_story: "이야기 읽기",
         read_story_desc: "동화책을 탐험하세요",
         continue_editing: "계속 편집하기",
-        no_drafts: "아직 저장된 초안이 없습니다. 이야기를 만들고 저장해보세요!",
         pages: "페이지",
-        delete_draft_confirm: "이 초안을 삭제하시겠습니까?",
         draft_not_found: "초안을 찾을 수 없습니다",
         failed_load_draft: "초안을 불러오지 못했습니다",
         failed_delete_draft: "초안을 삭제하지 못했습니다",
 
         // Library
         library_title: "동화 도서관",
-        translating_library: "도서관 번역 중...",
-        translating: "번역 중...",
         open: "열기",
         settings: "설정",
 
@@ -1058,17 +1050,13 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
         read_story: "物語を読む",
         read_story_desc: "利用可能な本を探索",
         continue_editing: "編集を続ける",
-        no_drafts: "まだ保存された下書きはありません。物語を作って保存しましょう！",
         pages: "ページ",
-        delete_draft_confirm: "この下書きを削除してもよろしいですか？",
         draft_not_found: "下書きが見つかりません",
         failed_load_draft: "下書きの読み込みに失敗しました",
         failed_delete_draft: "下書きの削除に失敗しました",
 
         // Library
         library_title: "ストーリーライブラリ",
-        translating_library: "ライブラリを翻訳中...",
-        translating: "翻訳中...",
         open: "開く",
         settings: "設定",
 
