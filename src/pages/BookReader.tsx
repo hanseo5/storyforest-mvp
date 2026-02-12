@@ -322,14 +322,17 @@ export const BookReader: React.FC = () => {
 
         // Only translate/use translated audio if targetLanguage differs from original
         if (needsTranslation) {
-            const translatedVoiceKey = `default_${targetLanguage}`;
-            const cachedTranslatedAudioUrl = currentPage.audioUrls?.[translatedVoiceKey];
+            // Only use cached translated audio if NO custom voice is selected
+            if (!selectedVoiceId) {
+                const translatedVoiceKey = `default_${targetLanguage}`;
+                const cachedTranslatedAudioUrl = currentPage.audioUrls?.[translatedVoiceKey];
 
-            if (cachedTranslatedAudioUrl) {
-                // Use cached translated audio (Network fetch required)
-                const audio = new Audio(cachedTranslatedAudioUrl);
-                setupAudio(audio, requestId);
-                return;
+                if (cachedTranslatedAudioUrl) {
+                    // Use cached translated audio (Network fetch required)
+                    const audio = new Audio(cachedTranslatedAudioUrl);
+                    setupAudio(audio, requestId);
+                    return;
+                }
             }
 
             // No cache - generate fresh TTS for the translated text
@@ -354,10 +357,13 @@ export const BookReader: React.FC = () => {
             return;
         }
 
-        const audioUrl = currentPage.audioUrls?.[voiceKey] || currentPage.audioUrls?.default || currentPage.audioUrl;
+        // If custom voice selected, only use audio cached for that exact voice
+        // Don't fall back to default audio — generate TTS with the custom voice instead
+        const audioUrl = selectedVoiceId
+            ? currentPage.audioUrls?.[voiceKey]
+            : (currentPage.audioUrls?.default || currentPage.audioUrl);
 
         if (audioUrl) {
-            // Use existing (pre-generated) audio for selected voice
             const audio = new Audio(audioUrl);
             setupAudio(audio, requestId);
             return;
