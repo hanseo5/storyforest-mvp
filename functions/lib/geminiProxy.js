@@ -95,10 +95,9 @@ exports.generateStory = (0, https_1.onCall)({
         ? variables.customMessage
         : MESSAGE_LABELS[variables.message] || variables.message;
     // Build prompt based on target language
-    const isEnglish = variables.targetLanguage === 'English';
-    const isJapanese = variables.targetLanguage === 'Japanese';
+    const targetLanguage = variables.targetLanguage || 'Korean';
     let storyPrompt;
-    if (isEnglish) {
+    if (targetLanguage === 'English') {
         storyPrompt = `You are a world-renowned children's picture book author. Create a short story with 10 to 15 pages based on the following information. Choose the page count that best fits the story's natural flow.
 
 Protagonist: ${variables.childName} (${variables.childAge} years old)
@@ -124,7 +123,7 @@ IMPORTANT: Write the entire story in English.
 Return format (JSON only, no markdown):
 {"title": "Title", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
     }
-    else if (isJapanese) {
+    else if (targetLanguage === 'Japanese') {
         storyPrompt = `あなたは世界的な児童絵本作家です。以下の情報に基づいて10〜15ページの短い物語を作成してください。物語の自然な流れに合わせて最適なページ数を選んでください。
 
 主人公: ${variables.childName} (${variables.childAge}歳)
@@ -151,31 +150,33 @@ Return format (JSON only, no markdown):
 {"title": "タイトル", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
     }
     else {
-        // Default: English
-        storyPrompt = `You are a world-renowned children's picture book author. Create a short story with 10 to 15 pages based on the following information. Choose the page count that best fits the story's natural flow.
+        // Default: Korean
+        storyPrompt = `당신은 세계적인 아동 그림책 작가입니다. 아래 정보를 기반으로 10~15페이지 분량의 짧은 동화를 만들어주세요. 이야기의 자연스러운 흐름에 맞게 최적의 페이지 수를 선택해주세요.
 
-Protagonist: ${variables.childName} (${variables.childAge} years old)
-Interests: ${interestLabels.join(', ')}
-Message to convey: "${messageLabel}"
+주인공: ${variables.childName} (${variables.childAge}세)
+좋아하는 것: ${interestLabels.join(', ')}
+전달하고 싶은 메시지: "${messageLabel}"
 
-📚 Writing Rules:
-1. Always use the protagonist's name "${variables.childName}"
-2. The interests (${interestLabels.join(', ')}) should naturally appear in the story
-3. Each page should have only 1-2 sentences (picture book style)
-4. Naturally incorporate the message "${messageLabel}" in the ending
-5. Use simple vocabulary that a ${variables.childAge}-year-old can understand
-6. Warm and positive atmosphere
+📚 작성 규칙:
+1. 주인공 이름 "${variables.childName}"을 반드시 사용해주세요
+2. 관심사 (${interestLabels.join(', ')})가 이야기에 자연스럽게 등장하도록 해주세요
+3. 각 페이지는 1~2문장만 (그림책 스타일)
+4. 교훈 "${messageLabel}"을 결말에 자연스럽게 녹여주세요
+5. ${variables.childAge}세 아이가 이해할 수 있는 쉬운 단어를 사용해주세요
+6. 따뜻하고 긍정적인 분위기
+7. 대화체를 40% 이상 포함해주세요
+8. 의성어/의태어를 적극 활용해주세요
 
-Story Structure (adjust proportionally to total page count):
-- ~15% Introduction (introduce protagonist)
-- ~40% Development (adventure/events)
-- ~30% Climax
-- ~15% Conclusion (deliver the message)
+이야기 구조 (총 페이지 수에 맞게 비율 조정):
+- 약 15%: 도입 (주인공 소개)
+- 약 40%: 전개 (모험/사건)
+- 약 30%: 클라이맥스
+- 약 15%: 결말 (메시지 전달)
 
-IMPORTANT: Write the entire story in English.
+중요: 이야기 전체를 한국어로 작성해주세요.
 
-Return format (JSON only, no markdown):
-{"title": "Title", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
+반환 형식 (JSON만, 마크다운 없이):
+{"title": "동화 제목", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
     }
     try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`, {
