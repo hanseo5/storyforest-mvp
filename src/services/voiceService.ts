@@ -133,6 +133,42 @@ export const reCloneVoiceFromSample = async (savedVoice: SavedVoice): Promise<st
     return tempVoiceId;
 };
 
+/**
+ * Re-clone an expired voice and update all Firestore references.
+ * Returns the new ElevenLabs voice ID, or null if re-clone is not possible.
+ */
+export const reCloneAndUpdateVoice = async (oldVoiceId: string, userId: string): Promise<string | null> => {
+    try {
+        const savedVoice = await getSavedVoiceById(oldVoiceId);
+        if (!savedVoice?.sampleStoragePath) {
+            console.warn('[VoiceService] Cannot re-clone: no stored sample for', oldVoiceId);
+            return null;
+        }
+
+        console.log('[VoiceService] Re-cloning expired voice:', savedVoice.name);
+        const newVoiceId = await reCloneVoiceFromSample(savedVoice);
+
+        // Save new voice doc with same metadata
+        await saveVoice(userId, newVoiceId, savedVoice.name, undefined, savedVoice.sampleStoragePath);
+
+        // Update user's selected voice to new ID
+        await setSelectedVoice(userId, newVoiceId);
+
+        // Delete old Firestore voice doc (ElevenLabs voice already gone)
+        try {
+            await deleteDoc(doc(db, VOICES_COLLECTION, oldVoiceId));
+        } catch {
+            // Non-critical
+        }
+
+        console.log('[VoiceService] Re-clone successful. New voiceId:', newVoiceId);
+        return newVoiceId;
+    } catch (error) {
+        console.error('[VoiceService] Re-clone failed:', error);
+        return null;
+    }
+};
+
 // Get user's selected voice ID (returns null for default voice)
 export const getSelectedVoice = async (userId: string): Promise<string | null> => {
     const settingsDoc = doc(db, USER_SETTINGS_COLLECTION, userId);

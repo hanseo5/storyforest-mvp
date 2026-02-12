@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Home, Play, Pause, Volume2, Loader, Mic, Square, Save, PlayCircle, Trash2, Music, VolumeX, Gauge } from 'lucide-react';
 import { getBookById } from '../services/bookService';
 import { generateSpeech } from '../services/elevenLabsService';
-import { getSelectedVoice } from '../services/voiceService';
+import { getSelectedVoice, reCloneAndUpdateVoice } from '../services/voiceService';
 import { useStore } from '../store';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
@@ -338,13 +338,38 @@ export const BookReader: React.FC = () => {
             // No cache - generate fresh TTS for the translated text
             setIsAudioLoading(true);
             try {
-                const generatedUrl = await generateSpeech(displayText, selectedVoiceId || undefined);
-                // Double check cancellation after await generateSpeech
-                if (requestId !== undefined && requestId !== playRequestRef.current) return;
-                if (!isMountedRef.current) return;
-
-                const audio = new Audio(generatedUrl);
-                setupAudio(audio, requestId);
+                let voiceForTTS = selectedVoiceId || undefined;
+                try {
+                    const generatedUrl = await generateSpeech(displayText, voiceForTTS);
+                    if (requestId !== undefined && requestId !== playRequestRef.current) return;
+                    if (!isMountedRef.current) return;
+                    const audio = new Audio(generatedUrl);
+                    setupAudio(audio, requestId);
+                } catch (ttsError: any) {
+                    // If voice expired on ElevenLabs, try re-cloning
+                    if (voiceForTTS && user && ttsError?.message?.includes('not found')) {
+                        console.log('[BookReader] Voice expired, attempting re-clone...');
+                        const newVoiceId = await reCloneAndUpdateVoice(voiceForTTS, user.uid);
+                        if (newVoiceId) {
+                            setSelectedVoiceId(newVoiceId);
+                            const generatedUrl = await generateSpeech(displayText, newVoiceId);
+                            if (requestId !== undefined && requestId !== playRequestRef.current) return;
+                            if (!isMountedRef.current) return;
+                            const audio = new Audio(generatedUrl);
+                            setupAudio(audio, requestId);
+                        } else {
+                            // Re-clone failed, fall back to default voice
+                            console.warn('[BookReader] Re-clone failed, using default voice');
+                            const generatedUrl = await generateSpeech(displayText);
+                            if (requestId !== undefined && requestId !== playRequestRef.current) return;
+                            if (!isMountedRef.current) return;
+                            const audio = new Audio(generatedUrl);
+                            setupAudio(audio, requestId);
+                        }
+                    } else {
+                        throw ttsError;
+                    }
+                }
             } catch (error) {
                 console.error('[BookReader] Translated TTS Error:', error);
                 if (isMountedRef.current) alert('Failed to play translated audio.');
@@ -372,13 +397,38 @@ export const BookReader: React.FC = () => {
         // No cached audio - generate TTS with selected voice
         setIsAudioLoading(true);
         try {
-            const generatedUrl = await generateSpeech(displayText, selectedVoiceId || undefined);
-            // Double check cancellation after await generateSpeech
-            if (requestId !== undefined && requestId !== playRequestRef.current) return;
-            if (!isMountedRef.current) return;
-
-            const audio = new Audio(generatedUrl);
-            setupAudio(audio, requestId);
+            let voiceForTTS = selectedVoiceId || undefined;
+            try {
+                const generatedUrl = await generateSpeech(displayText, voiceForTTS);
+                if (requestId !== undefined && requestId !== playRequestRef.current) return;
+                if (!isMountedRef.current) return;
+                const audio = new Audio(generatedUrl);
+                setupAudio(audio, requestId);
+            } catch (ttsError: any) {
+                // If voice expired on ElevenLabs, try re-cloning from stored sample
+                if (voiceForTTS && user && ttsError?.message?.includes('not found')) {
+                    console.log('[BookReader] Voice expired, attempting re-clone...');
+                    const newVoiceId = await reCloneAndUpdateVoice(voiceForTTS, user.uid);
+                    if (newVoiceId) {
+                        setSelectedVoiceId(newVoiceId);
+                        const generatedUrl = await generateSpeech(displayText, newVoiceId);
+                        if (requestId !== undefined && requestId !== playRequestRef.current) return;
+                        if (!isMountedRef.current) return;
+                        const audio = new Audio(generatedUrl);
+                        setupAudio(audio, requestId);
+                    } else {
+                        // Re-clone failed, fall back to default voice
+                        console.warn('[BookReader] Re-clone failed, using default voice');
+                        const generatedUrl = await generateSpeech(displayText);
+                        if (requestId !== undefined && requestId !== playRequestRef.current) return;
+                        if (!isMountedRef.current) return;
+                        const audio = new Audio(generatedUrl);
+                        setupAudio(audio, requestId);
+                    }
+                } else {
+                    throw ttsError;
+                }
+            }
         } catch (error) {
             console.error('[BookReader] TTS Error:', error);
             if (isMountedRef.current) alert('Failed to play audio. Please check your API key.');
