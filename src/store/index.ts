@@ -4,7 +4,7 @@ import type { UserProfile } from '../types';
 export interface BackgroundTask {
     bookId?: string;
     voiceId: string;
-    type: 'all' | 'single' | 'single-reclone';
+    type: 'all' | 'single' | 'single-reclone' | 'all-reclone';
     savedVoiceId?: string; // For re-clone: the Firestore voice doc ID with stored sample
 }
 
@@ -18,6 +18,9 @@ interface AppState {
         bookTitle: string;
         currentPage: number;
         totalPages: number;
+        phase?: 'cloning' | 'generating' | 'saving' | 'deleting' | 'done';
+        totalBooks?: number;
+        currentBook?: number;
     } | null;
     pendingTasks: BackgroundTask[];
 

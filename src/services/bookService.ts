@@ -362,11 +362,13 @@ export const getBookById = async (bookId: string): Promise<PublishedBook | null>
  * Generate audio for all pages in a book and save to Firebase Storage
  * Audio is stored per voice in audioUrls map
  * @param bookId - The book ID
- * @param customVoiceId - Optional custom voice ID (default = Brian)
+ * @param customVoiceId - Optional custom voice ID for generation (if different from storage)
+ * @param storageVoiceId - Optional voice ID to use for storage path and Firestore key (defaults to customVoiceId)
  */
-export const generateBookAudio = async (bookId: string, customVoiceId?: string): Promise<void> => {
+export const generateBookAudio = async (bookId: string, customVoiceId?: string, storageVoiceId?: string): Promise<void> => {
     try {
-        const voiceKey = customVoiceId || 'default';
+        const generationVoiceId = customVoiceId;
+        const voiceKey = storageVoiceId || customVoiceId || 'default';
 
         // Get book pages
         const book = await getBookById(bookId);
@@ -382,7 +384,7 @@ export const generateBookAudio = async (bookId: string, customVoiceId?: string):
 
 
             // Generate Speech
-            const audioBlob = await generateSpeechBlob(page.text, customVoiceId);
+            const audioBlob = await generateSpeechBlob(page.text, generationVoiceId);
 
             // Upload to Storage with voice-specific path
             const storagePath = `books/${bookId}/pages/${page.pageNumber}_audio_${voiceKey}.mp3`;
@@ -427,13 +429,16 @@ export type AudioGenerationProgress = {
  * Generate audio for ALL books with a specific voice
  * @param customVoiceId - Optional voice ID (default = Brian)
  * @param onProgress - Callback for progress updates
+ * @param storageVoiceId - Optional voice ID to use for storage path and Firestore key (defaults to customVoiceId)
  */
 export const generateAllBooksAudio = async (
     customVoiceId?: string,
-    onProgress?: (progress: AudioGenerationProgress) => void
+    onProgress?: (progress: AudioGenerationProgress) => void,
+    storageVoiceId?: string
 ): Promise<void> => {
     try {
-        const voiceKey = customVoiceId || 'default';
+        const generationVoiceId = customVoiceId;
+        const voiceKey = storageVoiceId || customVoiceId || 'default';
 
         // Get all books
         const books = await getAllPublishedBooks();
@@ -464,7 +469,7 @@ export const generateAllBooksAudio = async (
 
 
                 // Generate Speech
-                const audioBlob = await generateSpeechBlob(page.text, customVoiceId);
+                const audioBlob = await generateSpeechBlob(page.text, generationVoiceId);
 
                 // Upload to Storage
                 const storagePath = `books/${book.id}/pages/${page.pageNumber}_audio_${voiceKey}.mp3`;

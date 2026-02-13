@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { X, BookOpen, Headphones, Mic } from 'lucide-react';
+import { X, BookOpen, Headphones, Mic, PlayCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { translateContent } from '../services/geminiService';
@@ -21,6 +21,25 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
     const { t } = useTranslation();
     const [fullBook, setFullBook] = useState<(Book & { pages: Page[] }) | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
+
+    // Fetch fresh book data on mount to ensure we have the latest recording status
+    useEffect(() => {
+        if (!book?.id) return;
+
+        const fetchBookData = async () => {
+            try {
+                const { getBookById } = await import('../services/bookService');
+                const data = await getBookById(book.id);
+                if (data) {
+                    setFullBook(data);
+                }
+            } catch (error) {
+                console.error('[BookDetailModal] Failed to fetch fresh book data:', error);
+            }
+        };
+
+        fetchBookData();
+    }, [book?.id]);
 
     // Automatic translation when language changes (if modal is open)
     useEffect(() => {
@@ -52,8 +71,14 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
 
                 // 3. Not in Firestore - Manual translate (Fall-back if background sync hasn't reached it)
                 let currentPages = fullBook?.pages;
-                if (!fullBook || fullBook.id !== book.id) {
-                    const data = await import('../services/bookService').then(m => m.getBookById(book.id));
+                if (!currentPages && book.id) {
+                    // We might have fetched fullBook in the other effect, or we can fetch it here
+                    // But relying on the other effect is safer if we just wait or reuse the promise? 
+                    // For simplicity, let's just re-fetch if needed or check fullBook state
+                    // If fullBook is not yet set, we might need to wait or fetch again.
+                    // To avoid race conditions, let's just fetch here if not present.
+                    const { getBookById } = await import('../services/bookService');
+                    const data = await getBookById(book.id);
                     if (data) {
                         setFullBook(data);
                         currentPages = data.pages;
@@ -86,7 +111,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
         };
 
         prepareContent();
-    }, [book, book?.id, targetLanguage, translationCache, setTranslatedBook]);
+    }, [book, book?.id, targetLanguage, translationCache, setTranslatedBook, fullBook]); // Added fullBook dependency
 
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
@@ -107,9 +132,10 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
     const detectedLang = detectLanguage(book.title) || originalLang;
     const needsTranslation = targetLanguage && targetLanguage !== detectedLang;
 
-    const cachedData = needsTranslation ? translationCache[book.id]?.[targetLanguage] || {} : {};
-    const displayTitle = cachedData.title ? cleanTranslatedText(cachedData.title) : book.title;
-    const displayDesc = cachedData.description ? cleanTranslatedText(cachedData.description) : (book.description || t('no_description'));
+    const cachedData = needsTranslation ? (translationCache[book.id]?.[targetLanguage] || {}) : {};
+    // Type assertion used here because cachedData might be an empty object, causing TS errors on optional properties
+    const displayTitle = (cachedData as any).title ? cleanTranslatedText((cachedData as any).title) : book.title;
+    const displayDesc = (cachedData as any).description ? cleanTranslatedText((cachedData as any).description) : (book.description || t('no_description'));
 
     return (
         <AnimatePresence>
@@ -181,15 +207,36 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
                                     className="flex items-center justify-center gap-2 bg-orange-50 text-orange-700 py-3 px-4 rounded-xl font-bold hover:bg-orange-100 transition-colors border border-orange-100"
                                 >
                                     <Headphones className="w-5 h-5" />
-                                    {t('listen')}
+                                    {t('ai_audiobook')}
                                 </button>
-                                <button
-                                    className="flex items-center justify-center gap-2 bg-pink-50 text-pink-700 py-3 px-4 rounded-xl font-bold hover:bg-pink-100 transition-colors border border-pink-100"
-                                    onClick={() => navigate(`/read/${book.id}?mode=record`)}
-                                >
-                                    <Mic className="w-5 h-5" />
-                                    {t('record')}
-                                </button>
+                                {(() => {
+                                    // Check if user has recorded audio (look for _user_audio in any page)
+                                    // We use fullBook if available to get latest state, otherwise book
+                                    const sourceBook = (fullBook?.id === book.id ? fullBook : book) as Book & { pages?: Page[] };
+                                    const hasUserRecording = sourceBook.pages?.some(p => p.audioUrl?.includes('_user_audio'));
+
+                                    if (hasUserRecording) {
+                                        return (
+                                            <button
+                                                className="flex items-center justify-center gap-2 bg-pink-50 text-pink-700 py-3 px-4 rounded-xl font-bold hover:bg-pink-100 transition-colors border border-pink-100"
+                                                onClick={() => navigate(`/read/${book.id}?mode=listen&voice=user`)}
+                                            >
+                                                <PlayCircle className="w-5 h-5" />
+                                                {t('listen')}
+                                            </button>
+                                        );
+                                    }
+
+                                    return (
+                                        <button
+                                            className="flex items-center justify-center gap-2 bg-pink-50 text-pink-700 py-3 px-4 rounded-xl font-bold hover:bg-pink-100 transition-colors border border-pink-100"
+                                            onClick={() => navigate(`/read/${book.id}?mode=record`)}
+                                        >
+                                            <Mic className="w-5 h-5" />
+                                            {t('record')}
+                                        </button>
+                                    );
+                                })()}
                             </div>
                         </div>
                     </div>

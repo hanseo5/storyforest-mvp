@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Home, Play, Pause, Volume2, Loader, Mic, Square, Save, PlayCircle, Trash2, Music, VolumeX, Gauge } from 'lucide-react';
 import { getBookById } from '../services/bookService';
 import { generateSpeech } from '../services/elevenLabsService';
-import { getSelectedVoice, reCloneAndUpdateVoice } from '../services/voiceService';
+import { getSelectedVoice } from '../services/voiceService';
 import { useStore } from '../store';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
@@ -30,6 +30,8 @@ export const BookReader: React.FC = () => {
     // Audio State
     const [isPlaying, setIsPlaying] = useState(mode === 'listen');
     const [isAudioLoading, setIsAudioLoading] = useState(false);
+    const [customVoiceNotReady, setCustomVoiceNotReady] = useState(false);
+    const useDefaultFallbackRef = useRef(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     // Recording State
@@ -164,7 +166,7 @@ export const BookReader: React.FC = () => {
 
         // Auto-play with user interaction handling
         const attemptPlay = () => {
-            bgm.play().catch(e => {
+            bgm.play().catch(() => {
             });
         };
 
@@ -257,6 +259,7 @@ export const BookReader: React.FC = () => {
             audioRef.current = null;
         }
         setIsPlaying(false);
+        setCustomVoiceNotReady(false);
 
         // If in listen mode, auto-play with selected voice
         // Only play when we have the book and voice selection is ready (loading is done)
@@ -335,41 +338,22 @@ export const BookReader: React.FC = () => {
                 }
             }
 
-            // No cache - generate fresh TTS for the translated text
+            // Custom voice selected but no cached audio
+            if (selectedVoiceId && !useDefaultFallbackRef.current) {
+                // console.log('[BookReader] Custom voice translated audio not yet generated for this page');
+                setCustomVoiceNotReady(true);
+                setIsPlaying(false);
+                return;
+            }
+
+            // Default voice only: generate translated TTS on-the-fly
             setIsAudioLoading(true);
             try {
-                let voiceForTTS = selectedVoiceId || undefined;
-                try {
-                    const generatedUrl = await generateSpeech(displayText, voiceForTTS);
-                    if (requestId !== undefined && requestId !== playRequestRef.current) return;
-                    if (!isMountedRef.current) return;
-                    const audio = new Audio(generatedUrl);
-                    setupAudio(audio, requestId);
-                } catch (ttsError: any) {
-                    // If voice expired on ElevenLabs, try re-cloning
-                    if (voiceForTTS && user && ttsError?.message?.includes('not found')) {
-                        console.log('[BookReader] Voice expired, attempting re-clone...');
-                        const newVoiceId = await reCloneAndUpdateVoice(voiceForTTS, user.uid);
-                        if (newVoiceId) {
-                            setSelectedVoiceId(newVoiceId);
-                            const generatedUrl = await generateSpeech(displayText, newVoiceId);
-                            if (requestId !== undefined && requestId !== playRequestRef.current) return;
-                            if (!isMountedRef.current) return;
-                            const audio = new Audio(generatedUrl);
-                            setupAudio(audio, requestId);
-                        } else {
-                            // Re-clone failed, fall back to default voice
-                            console.warn('[BookReader] Re-clone failed, using default voice');
-                            const generatedUrl = await generateSpeech(displayText);
-                            if (requestId !== undefined && requestId !== playRequestRef.current) return;
-                            if (!isMountedRef.current) return;
-                            const audio = new Audio(generatedUrl);
-                            setupAudio(audio, requestId);
-                        }
-                    } else {
-                        throw ttsError;
-                    }
-                }
+                const generatedUrl = await generateSpeech(displayText);
+                if (requestId !== undefined && requestId !== playRequestRef.current) return;
+                if (!isMountedRef.current) return;
+                const audio = new Audio(generatedUrl);
+                setupAudio(audio, requestId);
             } catch (error) {
                 console.error('[BookReader] Translated TTS Error:', error);
                 if (isMountedRef.current) alert('Failed to play translated audio.');
@@ -380,6 +364,23 @@ export const BookReader: React.FC = () => {
                 }
             }
             return;
+        }
+
+        // CHECK: If user requested to listen to their own recording (voice=user)
+        const voiceParam = searchParams.get('voice');
+        if (voiceParam === 'user') {
+            // Prioritize the direct audioUrl (legacy/user recording field)
+            // User recordings are saved to `audioUrl` directly in saveRecording()
+            if (currentPage.audioUrl) {
+                const audio = new Audio(currentPage.audioUrl);
+                setupAudio(audio, requestId);
+                return;
+            }
+            // If no user recording found, alerting or falling back might be appropriate
+            // For now, let's just log and fall through to AI fallback if desired, 
+            // or return early to avoid playing AI voice unexpectedly.
+            // console.log('[BookReader] User recording requested but not found for this page.');
+            // Optional: alert('No recording found for this page.');
         }
 
         // If custom voice selected, only use audio cached for that exact voice
@@ -394,41 +395,22 @@ export const BookReader: React.FC = () => {
             return;
         }
 
-        // No cached audio - generate TTS with selected voice
+        // Custom voice selected but no pre-generated audio: show "not ready" message
+        if (selectedVoiceId && !useDefaultFallbackRef.current) {
+            // console.log('[BookReader] Custom voice audio not yet generated for this page');
+            setCustomVoiceNotReady(true);
+            setIsPlaying(false);
+            return;
+        }
+
+        // Default voice only: generate TTS on-the-fly (doesn't consume custom voice slots)
         setIsAudioLoading(true);
         try {
-            let voiceForTTS = selectedVoiceId || undefined;
-            try {
-                const generatedUrl = await generateSpeech(displayText, voiceForTTS);
-                if (requestId !== undefined && requestId !== playRequestRef.current) return;
-                if (!isMountedRef.current) return;
-                const audio = new Audio(generatedUrl);
-                setupAudio(audio, requestId);
-            } catch (ttsError: any) {
-                // If voice expired on ElevenLabs, try re-cloning from stored sample
-                if (voiceForTTS && user && ttsError?.message?.includes('not found')) {
-                    console.log('[BookReader] Voice expired, attempting re-clone...');
-                    const newVoiceId = await reCloneAndUpdateVoice(voiceForTTS, user.uid);
-                    if (newVoiceId) {
-                        setSelectedVoiceId(newVoiceId);
-                        const generatedUrl = await generateSpeech(displayText, newVoiceId);
-                        if (requestId !== undefined && requestId !== playRequestRef.current) return;
-                        if (!isMountedRef.current) return;
-                        const audio = new Audio(generatedUrl);
-                        setupAudio(audio, requestId);
-                    } else {
-                        // Re-clone failed, fall back to default voice
-                        console.warn('[BookReader] Re-clone failed, using default voice');
-                        const generatedUrl = await generateSpeech(displayText);
-                        if (requestId !== undefined && requestId !== playRequestRef.current) return;
-                        if (!isMountedRef.current) return;
-                        const audio = new Audio(generatedUrl);
-                        setupAudio(audio, requestId);
-                    }
-                } else {
-                    throw ttsError;
-                }
-            }
+            const generatedUrl = await generateSpeech(displayText);
+            if (requestId !== undefined && requestId !== playRequestRef.current) return;
+            if (!isMountedRef.current) return;
+            const audio = new Audio(generatedUrl);
+            setupAudio(audio, requestId);
         } catch (error) {
             console.error('[BookReader] TTS Error:', error);
             if (isMountedRef.current) alert('Failed to play audio. Please check your API key.');
@@ -469,8 +451,17 @@ export const BookReader: React.FC = () => {
             audioRef.current?.pause();
             setIsPlaying(false);
         } else {
+            setCustomVoiceNotReady(false);
             playAudio();
         }
+    };
+
+    // Play with default voice when custom voice audio is not ready
+    // Sets persistent flag so all subsequent pages also use default voice
+    const playWithDefaultVoice = async () => {
+        useDefaultFallbackRef.current = true;
+        setCustomVoiceNotReady(false);
+        playAudio();
     };
 
     // Auto-turn Logic for Listen Mode (Removed simple timer, relying on audio end)
@@ -601,6 +592,23 @@ export const BookReader: React.FC = () => {
                         />
                     </div>
                     <Volume2 size={20} className="text-gray-400" />
+                </div>
+            )}
+
+            {/* Custom Voice Not Ready Banner */}
+            {customVoiceNotReady && (
+                <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top duration-300">
+                    <div className="bg-amber-900/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-amber-500/30 shadow-xl text-center max-w-xs">
+                        <p className="text-amber-100 text-sm font-medium mb-2">
+                            {t('custom_voice_generating')}
+                        </p>
+                        <button
+                            onClick={playWithDefaultVoice}
+                            className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-4 py-2 rounded-full transition-all active:scale-95"
+                        >
+                            🎧 {t('listen_default_voice')}
+                        </button>
+                    </div>
                 </div>
             )}
 

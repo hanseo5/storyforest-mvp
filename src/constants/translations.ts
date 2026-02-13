@@ -148,7 +148,8 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
 
         // Book Detail Modal
         read_story_btn: "Read Story",
-        preparing_story: "Preparing Story...",
+        prepare_story: "Preparing Story...",
+        ai_audiobook: "AI Audiobook",
         listen: "Listen",
         record: "Record",
 
@@ -475,11 +476,22 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
         ap_books: "books",
         ap_page: "pages",
 
+        // BookReader - Custom Voice Status
+        custom_voice_generating: "Your custom voice audio is being prepared...",
+        listen_default_voice: "Listen with default voice",
+        custom_voice_not_ready: "Custom voice audio is not ready yet.",
+
         // BackgroundAudioGenerator
         bg_generating: "Generating audio...",
         bg_waiting: "Waiting...",
         bg_remaining: "Remaining tasks: {count}",
         bg_continues: "Continues in background even if you close this.",
+        bg_phase_cloning: "Cloning voice...",
+        bg_phase_generating: "Generating pages...",
+        bg_phase_saving: "Saving audio...",
+        bg_phase_deleting: "Freeing voice slot...",
+        bg_phase_done: "Audio generation complete!",
+        bg_slot_freed: "Voice slot freed. You can listen now!",
     },
     Korean: {
         // App-wide
@@ -631,6 +643,7 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
         // Book Detail Modal
         read_story_btn: "읽기",
         preparing_story: "준비 중...",
+        ai_audiobook: "AI 오디오북",
         listen: "듣기",
         record: "녹음",
 
@@ -957,11 +970,22 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
         ap_books: "책",
         ap_page: "페이지",
 
+        // BookReader - Custom Voice Status
+        custom_voice_generating: "맞춤 목소리 오디오를 준비하고 있어요...",
+        listen_default_voice: "기본 목소리로 듣기",
+        custom_voice_not_ready: "맞춤 목소리 오디오가 아직 준비되지 않았어요.",
+
         // BackgroundAudioGenerator
         bg_generating: "오디오 생성 중...",
         bg_waiting: "대기 중...",
         bg_remaining: "남은 작업: {count}개",
         bg_continues: "창을 닫아도 백그라운드에서 계속 생성됩니다.",
+        bg_phase_cloning: "목소리 복제 중...",
+        bg_phase_generating: "페이지 생성 중...",
+        bg_phase_saving: "오디오 저장 중...",
+        bg_phase_deleting: "음성 슬롯 해제 중...",
+        bg_phase_done: "오디오 생성 완료!",
+        bg_slot_freed: "음성 슬롯이 해제되었어요. 이제 들어보세요!",
     },
     Japanese: {
         // App-wide
@@ -1439,10 +1463,21 @@ export const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
         ap_books: "冊",
         ap_page: "ページ",
 
+        // BookReader - Custom Voice Status
+        custom_voice_generating: "カスタム音声のオーディオを準備しています...",
+        listen_default_voice: "デフォルト音声で聴く",
+        custom_voice_not_ready: "カスタム音声のオーディオはまだ準備できていません。",
+
         // BackgroundAudioGenerator
         bg_generating: "オーディオ生成中...",
         bg_waiting: "待機中...",
         bg_remaining: "残りタスク: {count}件",
         bg_continues: "ウィンドウを閉じてもバックグラウンドで生成し続けます。",
+        bg_phase_cloning: "音声クローン中...",
+        bg_phase_generating: "ページ生成中...",
+        bg_phase_saving: "オーディオ保存中...",
+        bg_phase_deleting: "音声スロット解放中...",
+        bg_phase_done: "オーディオ生成完了！",
+        bg_slot_freed: "音声スロットが解放されました。聴いてみてください！",
     },
 };

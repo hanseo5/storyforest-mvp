@@ -45,6 +45,17 @@ export const VoiceStorageModal: React.FC<VoiceStorageModalProps> = ({ onClose, o
         if (!user) return;
         setSelectedId(voiceId);
         await setSelectedVoice(user.uid, voiceId);
+
+        // If a custom voice is selected, trigger background generation for all books
+        // This ensures the user hears their selected voice immediately
+        if (voiceId) {
+            useStore.getState().addBackgroundTask({
+                voiceId: voiceId,
+                type: 'all-reclone',
+                savedVoiceId: voiceId
+            });
+        }
+
         onVoiceChange?.();
     };
 
