@@ -2,6 +2,8 @@ import { collection, addDoc, doc, setDoc, getDoc, getDocs, query, where, orderBy
 import { ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
 import { generateSpeechBlob } from './elevenLabsService';
+import { isAdminUser } from '../constants/admin';
+import { auth } from '../lib/firebase';
 import type { Book, Page } from '../types';
 import type { DraftBook } from '../types/draft';
 
@@ -72,6 +74,7 @@ export const publishBook = async (storyData: GeneratedStoryData): Promise<string
     try {
 
         // First create the book document to get the ID
+        const currentEmail = auth.currentUser?.email;
         const bookData = {
             title: storyData.title,
             authorId: storyData.authorId,
@@ -81,6 +84,7 @@ export const publishBook = async (storyData: GeneratedStoryData): Promise<string
             createdAt: Date.now(),
             originalLanguage: 'English',
             variables: storyData.variables,
+            isOfficial: isAdminUser(currentEmail),
         };
 
         const bookRef = await addDoc(collection(db, 'books'), bookData);
@@ -143,6 +147,7 @@ export const publishDraft = async (draft: DraftBook): Promise<string> => {
         }
 
         // Create book document
+        const currentEmail = auth.currentUser?.email;
         const bookData = {
             title: draft.title,
             authorId: draft.authorId,
@@ -152,6 +157,7 @@ export const publishDraft = async (draft: DraftBook): Promise<string> => {
             createdAt: Date.now(),
             draftId: draft.id, // Reference to original draft
             originalLanguage: draft.originalLanguage || 'English', // Language the book was written in
+            isOfficial: isAdminUser(currentEmail),
         };
 
         const bookRef = await addDoc(collection(db, 'books'), bookData);
@@ -256,40 +262,16 @@ export const getPublishedBooks = async (userId: string): Promise<Book[]> => {
     }
 };
 
-/**
- * Get all published books (for library - all users)
- */
-export const getAllPublishedBooks = async (): Promise<Book[]> => {
-    try {
 
-        const booksQuery = query(
-            collection(db, 'books'),
-            orderBy('createdAt', 'desc')
-        );
-
-        const snapshot = await getDocs(booksQuery);
-        const books: Book[] = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as Book));
-
-        return books;
-
-    } catch (error) {
-        console.error('[BookService] Error fetching all books:', error);
-        return [];
-    }
-};
 
 /**
- * Get official Storyforest books (created by admin accounts)
+ * Get official Storyforest books (isOfficial == true)
  */
-export const getOfficialBooks = async (adminUserIds: string[]): Promise<Book[]> => {
+export const getOfficialBooks = async (): Promise<Book[]> => {
     try {
-        if (adminUserIds.length === 0) return [];
         const booksQuery = query(
             collection(db, 'books'),
-            where('authorId', 'in', adminUserIds),
+            where('isOfficial', '==', true),
             orderBy('createdAt', 'desc')
         );
         const snapshot = await getDocs(booksQuery);
@@ -314,6 +296,32 @@ export const getUserBooks = async (userId: string): Promise<Book[]> => {
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Book));
     } catch (error) {
         console.error('[BookService] Error fetching user books:', error);
+        return [];
+    }
+};
+
+/**
+ * Get all books accessible to the current user (official + own books).
+ * Used for batch operations like audio generation and translation.
+ */
+export const getAccessibleBooks = async (): Promise<Book[]> => {
+    try {
+        const userId = auth.currentUser?.uid;
+        const official = await getOfficialBooks();
+
+        if (!userId) return official;
+
+        const personal = await getUserBooks(userId);
+
+        // Merge and deduplicate (admin's books may appear in both)
+        const ids = new Set(official.map(b => b.id));
+        const merged = [...official];
+        for (const book of personal) {
+            if (!ids.has(book.id)) merged.push(book);
+        }
+        return merged;
+    } catch (error) {
+        console.error('[BookService] Error fetching accessible books:', error);
         return [];
     }
 };
@@ -440,8 +448,8 @@ export const generateAllBooksAudio = async (
         const generationVoiceId = customVoiceId;
         const voiceKey = storageVoiceId || customVoiceId || 'default';
 
-        // Get all books
-        const books = await getAllPublishedBooks();
+        // Get all accessible books (official + own)
+        const books = await getAccessibleBooks();
 
         for (let bookIdx = 0; bookIdx < books.length; bookIdx++) {
             const bookMeta = books[bookIdx];
@@ -511,7 +519,7 @@ export const generateTranslatedAudio = async (
     try {
         const voiceKey = `default_${language}`;
 
-        const books = await getAllPublishedBooks();
+        const books = await getAccessibleBooks();
 
         for (let bookIdx = 0; bookIdx < books.length; bookIdx++) {
             const bookMeta = books[bookIdx];

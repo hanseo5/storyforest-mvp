@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "storyforest-mvp-hsl02"
-  }
+  },
+  "targets": {
+    "storyforest-mvp-hsl02": {
+      "hosting": {
+        "homepage": [
+          "storyforest-mvp-hsl02"
+        ],
+        "app": [
+          "storyforest-app"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

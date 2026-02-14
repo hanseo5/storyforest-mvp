@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인 — StoryForest</title>
+    <meta name="description" content="StoryForest에 로그인하세요. AI 맞춤형 동화책 서비스.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="auth.css">
+</head>
+
+<body>
+    <!-- Background decoration -->
+    <div class="auth-bg">
+        <div class="bg-circle bg-circle-1"></div>
+        <div class="bg-circle bg-circle-2"></div>
+        <div class="bg-circle bg-circle-3"></div>
+        <div class="leaf-container">
+            <div class="floating-leaf" style="--x:15%; --delay:0s; --dur:11s;"></div>
+            <div class="floating-leaf" style="--x:40%; --delay:2s; --dur:13s;"></div>
+            <div class="floating-leaf" style="--x:65%; --delay:4s; --dur:10s;"></div>
+            <div class="floating-leaf" style="--x:85%; --delay:1s; --dur:14s;"></div>
+        </div>
+    </div>
+
+    <div class="auth-wrapper">
+        <!-- Logo -->
+        <a href="index.html" class="auth-logo">
+            <div class="auth-logo-icon">🌲</div>
+            <div class="auth-logo-text">
+                <span class="auth-logo-name">STORYFOREST</span>
+                <span class="auth-logo-tag">AI 맞춤 동화책</span>
+            </div>
+        </a>
+
+        <!-- Card -->
+        <div class="auth-card">
+            <div class="auth-header">
+                <span class="auth-icon">👋</span>
+                <h1 class="auth-title">다시 만나 반가워요!</h1>
+                <p class="auth-subtitle">계정에 로그인하세요</p>
+            </div>
+
+            <!-- Error message -->
+            <div class="auth-error" id="errorBox" style="display:none;">
+                <span id="errorText"></span>
+            </div>
+
+            <!-- Method Selection -->
+            <div id="methodView">
+                <button class="btn-auth btn-google" id="btnGoogle" onclick="handleGoogleLogin()">
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                        <path
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"
+                            fill="#4285F4" />
+                        <path
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                            fill="#34A853" />
+                        <path
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z"
+                            fill="#FBBC05" />
+                        <path
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                            fill="#EA4335" />
+                    </svg>
+                    <span>Google로 로그인</span>
+                </button>
+
+                <div class="auth-divider">
+                    <span>또는</span>
+                </div>
+
+                <button class="btn-auth btn-email" onclick="showEmailForm()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="20" height="16" x="2" y="4" rx="2" />
+                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                    </svg>
+                    <span>이메일로 로그인</span>
+                </button>
+            </div>
+
+            <!-- Email Form -->
+            <div id="emailView" style="display:none;">
+                <button class="btn-back" onclick="showMethodView()">
+                    ← 돌아가기
+                </button>
+                <form onsubmit="handleEmailLogin(event)">
+                    <div class="form-group">
+                        <label>이메일</label>
+                        <input type="email" id="emailInput" placeholder="hello@example.com" required
+                            autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label>비밀번호</label>
+                        <input type="password" id="passwordInput" placeholder="••••••••" required minlength="6"
+                            autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn-auth btn-submit" id="btnSubmit">
+                        <span>로그인</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 12h14" />
+                            <path d="m12 5 7 7-7 7" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Verify Email -->
+            <div id="verifyView" style="display:none;">
+                <div class="verify-icon">📧</div>
+                <h3 class="verify-title">이메일을 확인해주세요</h3>
+                <p class="verify-desc">인증 메일을 발송했습니다.</p>
+                <p class="verify-email" id="verifyEmail"></p>
+                <button class="btn-auth btn-submit" onclick="handleCheckVerification()">
+                    <span>인증 완료 확인</span>
+                </button>
+                <button class="btn-auth btn-secondary" onclick="handleResendVerification()">
+                    <span>인증 메일 다시 보내기</span>
+                </button>
+            </div>
+
+            <!-- Footer link -->
+            <div class="auth-footer">
+                <p>아직 계정이 없으신가요? <a href="signup.html">회원가입</a></p>
+            </div>
+        </div>
+
+        <a href="index.html" class="auth-home-link">← 홈으로 돌아가기</a>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/11.3.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.3.0/firebase-auth-compat.js"></script>
+    <script>
+        // ── Firebase Init ──
+        firebase.initializeApp({
+            apiKey: "AIzaSyBqutsdkKsPR6p28Lf3beVPhcv6Dhyk9xM",
+            authDomain: "storyforest-mvp-hsl02.firebaseapp.com",
+            projectId: "storyforest-mvp-hsl02",
+            storageBucket: "storyforest-mvp-hsl02.firebasestorage.app",
+            messagingSenderId: "580984401842",
+            appId: "1:580984401842:web:56d9d59008cb2e1b6e3eab"
+        });
+        const auth = firebase.auth();
+        const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+        // ── Auth State: Single source of truth ──
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) return; // Not logged in, stay on page
+
+            try {
+                await user.reload(); // Validate user still exists
+                const refreshedUser = auth.currentUser;
+
+                // Google user → go to download
+                if (refreshedUser.providerData[0]?.providerId === 'google.com') {
+                    window.location.href = 'index.html';
+                    return;
+                }
+                // Email user with verified email → go to download
+                if (refreshedUser.emailVerified) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+                // Email user without verification → stay (don't auto-redirect)
+            } catch (e) {
+                // Token invalid (deleted user) → clear session
+                console.warn('Session expired, signing out');
+                auth.signOut();
+            }
+        });
+
+        // ── Google Login ──
+        async function handleGoogleLogin() {
+            hideError();
+            setLoading(true);
+            try {
+                await auth.signInWithPopup(googleProvider);
+                // onAuthStateChanged will handle redirect
+            } catch (err) {
+                console.error('Google login error:', err);
+                if (err.code === 'auth/popup-closed-by-user') {
+                    // User closed popup, do nothing
+                } else if (err.code === 'auth/cancelled-popup-request') {
+                    // Multiple popups, do nothing
+                } else {
+                    showError('Google 로그인에 실패했습니다. 다시 시도해주세요.');
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // ── Email Login ──
+        async function handleEmailLogin(e) {
+            e.preventDefault();
+            hideError();
+            setLoading(true);
+
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+
+            try {
+                const cred = await auth.signInWithEmailAndPassword(email, password);
+
+                if (!cred.user.emailVerified) {
+                    await cred.user.sendEmailVerification();
+                    await auth.signOut();
+                    document.getElementById('verifyEmail').textContent = email;
+                    showView('verifyView');
+                    return;
+                }
+                // onAuthStateChanged will handle redirect
+            } catch (err) {
+                console.error('Email login error:', err);
+                if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                    showError('이메일 또는 비밀번호가 올바르지 않습니다.');
+                } else if (err.code === 'auth/invalid-email') {
+                    showError('올바른 이메일 형식이 아닙니다.');
+                } else if (err.code === 'auth/too-many-requests') {
+                    showError('너무 많은 시도가 있었습니다. 잠시 후 다시 시도해주세요.');
+                } else {
+                    showError('로그인에 실패했습니다. 다시 시도해주세요.');
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // ── Resend verification ──
+        async function handleResendVerification() {
+            hideError();
+            setLoading(true);
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+
+            try {
+                const cred = await auth.signInWithEmailAndPassword(email, password);
+                if (cred.user.emailVerified) {
+                    // Already verified, onAuthStateChanged will redirect
+                    return;
+                }
+                await cred.user.sendEmailVerification();
+                await auth.signOut();
+                showError('인증 메일을 다시 보냈습니다. 메일함을 확인해주세요.');
+            } catch (err) {
+                showError('메일 발송에 실패했습니다. 다시 시도해주세요.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // ── Check verification ──
+        async function handleCheckVerification() {
+            hideError();
+            setLoading(true);
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+
+            try {
+                const cred = await auth.signInWithEmailAndPassword(email, password);
+                if (cred.user.emailVerified) {
+                    // onAuthStateChanged will redirect
+                } else {
+                    await auth.signOut();
+                    showError('아직 이메일 인증이 완료되지 않았습니다.');
+                }
+            } catch (err) {
+                showError('확인에 실패했습니다. 다시 시도해주세요.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // ── UI Helpers ──
+        function showEmailForm() { hideError(); showView('emailView'); }
+        function showMethodView() { hideError(); showView('methodView'); }
+
+        function showView(viewId) {
+            ['methodView', 'emailView', 'verifyView'].forEach(id => {
+                document.getElementById(id).style.display = id === viewId ? 'block' : 'none';
+            });
+        }
+
+        function showError(msg) {
+            const box = document.getElementById('errorBox');
+            document.getElementById('errorText').textContent = msg;
+            box.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('errorBox').style.display = 'none';
+        }
+
+        function setLoading(isLoading) {
+            document.querySelectorAll('.btn-auth').forEach(btn => {
+                btn.disabled = isLoading;
+                if (isLoading) btn.classList.add('loading');
+                else btn.classList.remove('loading');
+            });
+        }
+    </script>
+</body>
+
+</html>

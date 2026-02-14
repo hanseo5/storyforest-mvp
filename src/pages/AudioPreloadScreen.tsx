@@ -71,10 +71,10 @@ export const AudioPreloadScreen: React.FC = () => {
                 // Phase 3: Pre-download assets (Audio Preloading)
                 setPhase('download');
                 setStatus('downloading');
-                const { getAllPublishedBooks, getBookById } = await import('../services/bookService');
+                const { getAccessibleBooks, getBookById } = await import('../services/bookService');
                 const { preloadBookAudio } = await import('../services/audioPreloadService');
 
-                const books = await getAllPublishedBooks();
+                const books = await getAccessibleBooks();
                 for (let i = 0; i < books.length; i++) {
                     const book = await getBookById(books[i].id);
                     if (book) {

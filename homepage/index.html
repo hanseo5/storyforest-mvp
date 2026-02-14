@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StoryForest — AI로 만드는 마법 같은 동화책</title>
+    <meta name="description" content="StoryForest는 AI가 아이 맞춤형 동화책을 만들어주는 서비스입니다. 부모의 목소리로 읽어주는 세상에 하나뿐인 이야기를 만들어보세요.">
+    <meta name="keywords" content="AI 동화책, 맞춤형 동화, 음성 클로닝, 어린이 스토리, StoryForest">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <link rel="icon" type="image/jpeg" href="images/logo.jpg">
+    <link rel="stylesheet" href="style.css?v=2">
+</head>
+
+<body>
+    <!-- ========== NAVIGATION ========== -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="#" class="nav-logo">
+                <img src="images/logo.jpg" alt="StoryForest Logo" class="nav-logo-img"
+                    style="height:40px; width:40px; border-radius:12px; object-fit:cover;">
+
+                <div class="logo-text">
+                    <span class="logo-name">STORYFOREST</span>
+                    <span class="logo-tagline">AI 맞춤 동화책</span>
+                </div>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="#features" class="nav-link">기능</a>
+                <a href="#how-it-works" class="nav-link">이용방법</a>
+                <a href="#pricing" class="nav-link">구독</a>
+                <a href="#contact" class="nav-link">문의하기</a>
+                <a href="#faq" class="nav-link">FAQ</a>
+            </div>
+            <div class="nav-actions" id="navAuth">
+                <a href="login.html" class="btn btn-outline-nav" id="btnLogin">로그인</a>
+                <a href="signup.html" class="btn btn-primary-nav" id="btnSignup">회원가입</a>
+                <a href="profile.html" class="nav-profile-btn" id="btnProfile" style="display:none;">
+                    <div class="nav-avatar" id="navAvatar">👤</div>
+                </a>
+            </div>
+            <button class="nav-toggle" id="navToggle" aria-label="메뉴 열기">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ========== HERO ========== -->
+    <section class="hero" id="hero">
+        <!-- Floating particles -->
+        <div class="hero-particles">
+            <div class="particle leaf" style="--x: 10%; --delay: 0s; --duration: 12s;"></div>
+            <div class="particle leaf" style="--x: 25%; --delay: 2s; --duration: 14s;"></div>
+            <div class="particle leaf" style="--x: 40%; --delay: 4s; --duration: 11s;"></div>
+            <div class="particle leaf" style="--x: 55%; --delay: 1s; --duration: 13s;"></div>
+            <div class="particle leaf" style="--x: 70%; --delay: 3s; --duration: 15s;"></div>
+            <div class="particle leaf" style="--x: 85%; --delay: 5s; --duration: 12s;"></div>
+            <div class="particle sparkle" style="--x: 15%; --y: 20%; --delay: 0s;"></div>
+            <div class="particle sparkle" style="--x: 35%; --y: 40%; --delay: 1s;"></div>
+            <div class="particle sparkle" style="--x: 65%; --y: 30%; --delay: 2s;"></div>
+            <div class="particle sparkle" style="--x: 80%; --y: 60%; --delay: 0.5s;"></div>
+            <div class="particle sparkle" style="--x: 50%; --y: 15%; --delay: 1.5s;"></div>
+        </div>
+
+        <div class="container hero-container">
+            <div class="hero-content" id="heroContent">
+                <div class="hero-badge">✨ AI 기반 맞춤형 동화</div>
+                <h1 class="hero-title">
+                    우리 아이만을 위한<br>
+                    <span class="gradient-text">마법 같은 동화책</span>
+                </h1>
+                <p class="hero-subtitle">
+                    아이의 이름, 관심사, 전하고 싶은 메시지를 입력하면<br>
+                    AI가 세상에 하나뿐인 동화책을 만들어 드려요.<br>
+                    <strong>부모님의 목소리</strong>로 읽어주는 것까지.
+                </p>
+                <div class="hero-actions">
+                    <a href="install.html" class="btn btn-hero-primary">
+                        <span>무료로 시작하기</span>
+                        <i data-lucide="arrow-right"></i>
+                    </a>
+
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number">10+</span>
+                        <span class="stat-label">페이지 동화책</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat">
+                        <span class="stat-number">6가지</span>
+                        <span class="stat-label">아트 스타일</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat">
+                        <span class="stat-number">3개국어</span>
+                        <span class="stat-label">지원 언어</span>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual" id="heroVisual">
+                <div class="hero-mascots">
+                    <div class="mascot-glow"></div>
+                    <img src="images/benny.png" alt="Benny the Owl" class="mascot benny">
+                    <img src="images/poki.png" alt="Poki the Squirrel" class="mascot poki">
+
+                    <!-- Floating elements (reused/adjusted) -->
+                    <div class="float-element float-star" style="--float-x: -40px; --float-y: -30px;">⭐</div>
+                    <div class="float-element float-note" style="--float-x: 50px; --float-y: -20px;">🎵</div>
+                    <div class="float-element float-sparkle" style="--float-x: -50px; --float-y: 40px;">✨</div>
+                    <div class="float-element float-leaf" style="--float-x: 60px; --float-y: 50px;">🍃</div>
+                </div>
+            </div>
+        </div>
+        <div class="hero-wave">
+            <svg viewBox="0 0 1440 120" preserveAspectRatio="none">
+                <path d="M0,60 C360,120 720,0 1080,60 C1260,90 1380,60 1440,40 L1440,120 L0,120 Z"
+                    fill="var(--bg-white)" />
+            </svg>
+        </div>
+    </section>
+
+    <!-- ========== FEATURES ========== -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header" data-animate>
+                <span class="section-badge">🌟 주요 기능</span>
+                <h2 class="section-title">아이에게 특별한 선물을</h2>
+                <p class="section-subtitle">StoryForest만의 AI 기술로 세상에 하나뿐인 동화책을 만들어 보세요</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card" data-animate>
+                    <div class="feature-icon feature-icon-magic">
+                        <i data-lucide="wand-2"></i>
+                    </div>
+                    <h3 class="feature-title">AI 스토리 메이커</h3>
+                    <p class="feature-desc">아이 이름, 나이, 관심사만 입력하면 Gemini AI가 맞춤형 동화를 생성합니다. 교육적 메시지까지 자연스럽게 담아드려요.</p>
+                </div>
+
+                <div class="feature-card" data-animate>
+                    <div class="feature-icon feature-icon-art">
+                        <i data-lucide="palette"></i>
+                    </div>
+                    <h3 class="feature-title">AI 일러스트레이션</h3>
+                    <p class="feature-desc">수채화, 크레용, 디지털 아트 등 6가지 스타일로 매 페이지마다 아름다운 그림을 AI가 자동 생성합니다.</p>
+                </div>
+
+                <div class="feature-card" data-animate>
+                    <div class="feature-icon feature-icon-voice">
+                        <i data-lucide="mic"></i>
+                    </div>
+                    <h3 class="feature-title">보이스 클로닝</h3>
+                    <p class="feature-desc">엄마, 아빠의 목소리를 녹음하면 AI가 그 목소리로 동화를 읽어줍니다. 출장 중에도 부모님 목소리로 잠들 수 있어요.</p>
+                </div>
+
+                <div class="feature-card" data-animate>
+                    <div class="feature-icon feature-icon-photo">
+                        <i data-lucide="camera"></i>
+                    </div>
+                    <h3 class="feature-title">사진 기반 스토리</h3>
+                    <p class="feature-desc">가족 사진을 업로드하면 AI가 사진 속 장면을 마법 같은 동화로 변환해드립니다.</p>
+                </div>
+
+                <div class="feature-card" data-animate>
+                    <div class="feature-icon feature-icon-lang">
+                        <i data-lucide="globe"></i>
+                    </div>
+                    <h3 class="feature-title">다국어 지원</h3>
+                    <p class="feature-desc">한국어, 영어, 일본어로 동화를 생성할 수 있어 자연스러운 외국어 노출 환경을 만들어 줍니다.</p>
+                </div>
+
+                <div class="feature-card" data-animate>
+                    <div class="feature-icon feature-icon-book">
+                        <i data-lucide="book-open"></i>
+                    </div>
+                    <h3 class="feature-title">인터랙티브 리더</h3>
+                    <p class="feature-desc">페이지를 넘기며 읽을 수 있는 아름다운 리더 인터페이스. 음성 내레이션과 함께 최고의 독서 경험을 선사합니다.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== HOW IT WORKS ========== -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="container">
+            <div class="section-header" data-animate>
+                <span class="section-badge">📖 이용 방법</span>
+                <h2 class="section-title">3단계로 완성되는 동화책</h2>
+                <p class="section-subtitle">복잡한 과정 없이, 몇 번의 터치만으로 완성됩니다</p>
+            </div>
+
+            <div class="steps-container">
+                <div class="step" data-animate>
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <div class="step-icon-wrapper">
+                            <i data-lucide="user-round-pen"></i>
+                        </div>
+                        <h3 class="step-title">아이 정보 입력</h3>
+                        <p class="step-desc">이름, 나이, 좋아하는 것, 전하고 싶은 메시지를 입력하세요.</p>
+                    </div>
+                </div>
+
+                <div class="step-connector">
+                    <div class="connector-line"></div>
+                    <div class="connector-arrow">→</div>
+                </div>
+
+                <div class="step" data-animate>
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <div class="step-icon-wrapper">
+                            <i data-lucide="sparkles"></i>
+                        </div>
+                        <h3 class="step-title">AI가 동화를 생성</h3>
+                        <p class="step-desc">AI가 스토리, 일러스트, 음성 내레이션을 자동으로 만들어요.</p>
+                    </div>
+                </div>
+
+                <div class="step-connector">
+                    <div class="connector-line"></div>
+                    <div class="connector-arrow">→</div>
+                </div>
+
+                <div class="step" data-animate>
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <div class="step-icon-wrapper">
+                            <i data-lucide="book-heart"></i>
+                        </div>
+                        <h3 class="step-title">동화 감상</h3>
+                        <p class="step-desc">아름다운 리더로 아이와 함께 읽거나, 잠자리에서 들려주세요.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== PRICING ========== -->
+    <section class="pricing" id="pricing">
+        <div class="container">
+            <div class="section-header" data-animate>
+                <span class="section-badge">💎 구독 요금제</span>
+                <h2 class="section-title">아이에게 맞는 플랜을 선택하세요</h2>
+                <p class="section-subtitle">모든 플랜에서 AI 일러스트레이션과 음성 내레이션이 포함됩니다</p>
+            </div>
+
+            <div class="pricing-grid">
+                <!-- Free Plan -->
+                <div class="pricing-card" data-animate>
+                    <div class="pricing-header">
+                        <div class="plan-icon">🌱</div>
+                        <h3 class="plan-name">씨앗</h3>
+                        <p class="plan-tagline">처음 만나는 동화의 숲</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="price-amount">₩0</span>
+                        <span class="price-period">/ 월</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><i data-lucide="check"></i> <span>월 <strong>2편</strong> 동화 생성</span></li>
+                        <li><i data-lucide="check"></i> <span>최대 10페이지</span></li>
+                        <li><i data-lucide="check"></i> <span>AI 일러스트레이션</span></li>
+                        <li><i data-lucide="check"></i> <span>기본 음성 내레이션</span></li>
+                        <li><i data-lucide="check"></i> <span>아트 스타일 2종</span></li>
+                        <li class="disabled"><i data-lucide="x"></i> <span>보이스 클로닝</span></li>
+                        <li class="disabled"><i data-lucide="x"></i> <span>사진 기반 스토리</span></li>
+                    </ul>
+                    <a href="install.html" class="btn btn-plan btn-plan-free">무료로 시작하기</a>
+                </div>
+
+                <!-- Storyteller Plan -->
+                <div class="pricing-card pricing-card-featured" data-animate>
+                    <div class="featured-badge">가장 인기</div>
+                    <div class="pricing-header">
+                        <div class="plan-icon">🌿</div>
+                        <h3 class="plan-name">스토리텔러</h3>
+                        <p class="plan-tagline">나만의 동화 세계를</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="price-amount">₩9,900</span>
+                        <span class="price-period">/ 월</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><i data-lucide="check"></i> <span>월 <strong>10편</strong> 동화 생성</span></li>
+                        <li><i data-lucide="check"></i> <span>최대 15페이지</span></li>
+                        <li><i data-lucide="check"></i> <span>AI 일러스트레이션</span></li>
+                        <li><i data-lucide="check"></i> <span>모든 음성 + <strong>보이스 클론 1개</strong></span></li>
+                        <li><i data-lucide="check"></i> <span>아트 스타일 <strong>6종 전체</strong></span></li>
+                        <li><i data-lucide="check"></i> <span>우선 생성 처리</span></li>
+                        <li class="disabled"><i data-lucide="x"></i> <span>사진 기반 스토리</span></li>
+                    </ul>
+                    <a onclick="alert('현재 베타 기간으로 무료로 이용하실 수 있습니다!')" href="javascript:void(0)"
+                        class="btn btn-plan btn-plan-featured">스토리텔러 시작하기</a>
+                </div>
+
+                <!-- Forest Guardian Plan -->
+                <div class="pricing-card" data-animate>
+                    <div class="pricing-header">
+                        <div class="plan-icon">🌳</div>
+                        <h3 class="plan-name">숲의 수호자</h3>
+                        <p class="plan-tagline">무한한 상상의 숲으로</p>
+                    </div>
+                    <div class="pricing-price">
+                        <span class="price-amount">₩29,900</span>
+                        <span class="price-period">/ 월</span>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><i data-lucide="check"></i> <span>월 <strong>30편</strong> 동화 생성</span></li>
+                        <li><i data-lucide="check"></i> <span>최대 15페이지</span></li>
+                        <li><i data-lucide="check"></i> <span>AI 일러스트레이션</span></li>
+                        <li><i data-lucide="check"></i> <span>모든 음성 + <strong>보이스 클론 3개</strong></span></li>
+                        <li><i data-lucide="check"></i> <span>아트 스타일 <strong>6종 전체</strong></span></li>
+                        <li><i data-lucide="check"></i> <span>우선 생성 처리</span></li>
+                        <li><i data-lucide="check"></i> <span><strong>사진 기반 스토리</strong></span></li>
+                    </ul>
+                    <a onclick="alert('현재 베타 기간으로 무료로 이용하실 수 있습니다!')" href="javascript:void(0)"
+                        class="btn btn-plan btn-plan-premium">숲의 수호자 시작하기</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FAQ ========== -->
+    <section class="faq" id="faq">
+        <div class="container">
+            <div class="section-header" data-animate>
+                <span class="section-badge">❓ 자주 묻는 질문</span>
+                <h2 class="section-title">궁금한 점이 있으신가요?</h2>
+            </div>
+            <div class="faq-list">
+                <div class="faq-item" data-animate>
+                    <button class="faq-question" aria-expanded="false">
+                        <span>AI가 만든 동화의 품질은 어떤가요?</span>
+                        <i data-lucide="chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>Google의 최신 Gemini AI를 활용하여 아동 문학 전문가 수준의 스토리를 생성합니다. 아이의 나이에 맞는 어휘와 따뜻한 메시지를 담아 고품질 동화를 만들어
+                            드립니다.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-animate>
+                    <button class="faq-question" aria-expanded="false">
+                        <span>보이스 클로닝은 안전한가요?</span>
+                        <i data-lucide="chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>녹음된 음성은 ElevenLabs의 보안 서버에서 처리되며, 동화 오디오 생성이 완료되면 클론된 음성 모델은 즉시 삭제됩니다. 음성 데이터는 저장되지 않습니다.</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-animate>
+                    <button class="faq-question" aria-expanded="false">
+                        <span>무료 플랜으로도 충분한가요?</span>
+                        <i data-lucide="chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>무료 플랜에서도 AI 일러스트와 음성 내레이션이 포함된 고품질 동화책 2편을 만들 수 있습니다. StoryForest의 마법을 직접 체험해 보세요!</p>
+                    </div>
+                </div>
+                <div class="faq-item" data-animate>
+                    <button class="faq-question" aria-expanded="false">
+                        <span>구독은 언제든 취소할 수 있나요?</span>
+                        <i data-lucide="chevron-down"></i>
+                    </button>
+                    <div class="faq-answer">
+                        <p>네, 구독은 언제든 자유롭게 취소할 수 있습니다. 취소 후에도 결제 기간이 끝날 때까지 서비스를 계속 이용하실 수 있습니다.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== CTA ========== -->
+    <section class="cta" id="cta">
+        <div class="container">
+            <div class="cta-content" data-animate>
+                <h2 class="cta-title">오늘 밤, 아이에게<br>특별한 동화를 선물하세요</h2>
+                <p class="cta-subtitle">무료로 시작하고, 아이의 눈이 반짝이는 순간을 경험하세요.</p>
+                <a href="install.html" class="btn btn-cta">
+                    <span>무료로 동화 만들기</span>
+                    <i data-lucide="arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="footer" id="contact">
+        <div class="container">
+            <div class="footer-main">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <div class="logo-icon">🌲</div>
+                        <span class="logo-name">STORYFOREST</span>
+                    </div>
+                    <p class="footer-desc">AI가 만들어주는 우리 아이만의 마법 같은 동화책</p>
+                </div>
+                <div class="footer-links-group">
+                    <div class="footer-col">
+                        <h4>서비스</h4>
+                        <a href="#features">기능 소개</a>
+                        <a href="#pricing">요금제</a>
+                        <a href="#how-it-works">이용 방법</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>문의하기</h4>
+                        <a href="mailto:hsl020819@gmail.com">hsl020819@gmail.com</a>
+                        <a href="tel:010-9691-0819">010-9691-0819</a>
+                        <a href="#faq">FAQ</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>법적 고지</h4>
+                        <a href="#">이용약관</a>
+                        <a href="#">개인정보처리방침</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 StoryForest. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+
+    <!-- Firebase Auth for nav state -->
+    <script src="https://www.gstatic.com/firebasejs/11.3.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.3.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.3.0/firebase-functions-compat.js"></script>
+    <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+    <script>
+        firebase.initializeApp({
+            apiKey: "AIzaSyBqutsdkKsPR6p28Lf3beVPhcv6Dhyk9xM",
+            authDomain: "storyforest-mvp-hsl02.firebaseapp.com",
+            projectId: "storyforest-mvp-hsl02",
+            storageBucket: "storyforest-mvp-hsl02.firebasestorage.app",
+            messagingSenderId: "580984401842",
+            appId: "1:580984401842:web:56d9d59008cb2e1b6e3eab"
+        });
+
+        firebase.auth().onAuthStateChanged((user) => {
+            const btnLogin = document.getElementById('btnLogin');
+            const btnSignup = document.getElementById('btnSignup');
+            const btnProfile = document.getElementById('btnProfile');
+            const navAvatar = document.getElementById('navAvatar');
+
+            if (user) {
+                // Logged in → show profile button
+                btnLogin.style.display = 'none';
+                btnSignup.style.display = 'none';
+                btnProfile.style.display = 'flex';
+
+                if (user.photoURL) {
+                    navAvatar.innerHTML = `<img src="${user.photoURL}" alt="프로필" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+                } else {
+                    navAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : '👤';
+                }
+            } else {
+                // Logged out → show login/signup
+                btnLogin.style.display = '';
+                btnSignup.style.display = '';
+                btnProfile.style.display = 'none';
+            }
+        });
+        async function subscribe(planId) {
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                alert('로그인이 필요합니다.');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const PLANS = {
+                'storyteller': { name: '스토리텔러', amount: 9900 },
+                'forest_guardian': { name: '숲의 수호자', amount: 19900 }
+            };
+            const plan = PLANS[planId];
+            if (!plan) return;
+
+            // Load PortOne SDK if not loaded (or ensure it IS loaded)
+            if (!window.PortOne) {
+                alert('결제 모듈 로딩 중입니다. 잠시 후 다시 시도해주세요.');
+                return;
+            }
+
+            try {
+                // Request Billing Key (PortOne V2)
+                // Use Test Key for Store ID - User needs to replace this later or I use a dummy one that works in Test Mode?
+                // PortOne V2 Test Store ID is specific. I'll use a placeholder and warn user.
+                // Actually, for V2, we need correct keys.
+                // I'll use a try-catch and if it fails, fallback to alert.
+
+                const issueResponse = await PortOne.requestBillingKey({
+                    storeId: "store-4ff4af41-85e3-4559-8eb8-0d08a2c6ce79", // REPLACE WITH REAL STORE ID
+                    channelKey: "channel-key-3b3d3b7d-5f29-4d1a-9647-789012345678", // REPLACE WITH REAL CHANNEL KEY
+                    billingKeyPaymentMethod: "CARD",
+                });
+
+                if (issueResponse.code != null) {
+                    alert(`결제 실패: ${issueResponse.message}`);
+                    return;
+                }
+
+                const btn = event.target.closest('.btn'); // Handle icon clicks
+                if (btn) {
+                    btn.textContent = '처리중...';
+                    btn.disabled = true;
+                }
+
+                const subscribeFn = firebase.functions().httpsCallable('subscribeToPlan');
+                const result = await subscribeFn({
+                    billingKey: issueResponse.billingKey,
+                    planId: planId
+                });
+
+                alert('구독이 완료되었습니다!');
+                window.location.href = 'profile.html';
+
+            } catch (error) {
+                console.error('Subscription error:', error);
+                alert('오류가 발생했습니다: ' + error.message);
+                const btn = event.target.closest('.btn');
+                if (btn) {
+                    btn.textContent = '지금 시작하기'; // Simplistic restore
+                    btn.disabled = false;
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

@@ -15,6 +15,7 @@ export interface Book {
     description?: string;
     style?: string; // e.g., "watercolor", "cartoon"
     originalLanguage?: string; // Language the book was originally written in
+    isOfficial?: boolean; // true = admin/official content visible to all users
 }
 
 export interface Page {

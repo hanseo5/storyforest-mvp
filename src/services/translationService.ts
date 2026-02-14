@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { translateContent } from './geminiService';
-import { getAllPublishedBooks, getBookById } from './bookService';
+import { getAccessibleBooks, getBookById } from './bookService';
 
 export interface TranslatedBook {
     title: string;
@@ -67,7 +67,7 @@ export const translateAndCacheBook = async (bookId: string, lang: string): Promi
  */
 export const translateAllBooks = async (lang: string, onProgress?: (current: number, total: number) => void) => {
     try {
-        const books = await getAllPublishedBooks();
+        const books = await getAccessibleBooks();
 
         const { useStore } = await import('../store');
 

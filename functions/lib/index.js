@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteVoiceFunction = exports.generateSpeechFunction = exports.addVoiceFunction = exports.registerAdminLogin = exports.geminiGenerate = exports.generateImageCF = exports.translateContent = exports.generatePhotoStory = exports.generateStory = exports.generateAudio = exports.registerVoice = void 0;
+exports.portOneWebhook = exports.cancelSubscription = exports.subscribeToPlan = exports.deleteVoiceFunction = exports.generateSpeechFunction = exports.addVoiceFunction = exports.registerAdminLogin = exports.geminiGenerate = exports.generateImageCF = exports.translateContent = exports.generatePhotoStory = exports.generateStory = exports.generateAudio = exports.registerVoice = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Initialize admin app once here
 admin.initializeApp();
@@ -52,4 +52,8 @@ var elevenlabs_1 = require("./elevenlabs");
 Object.defineProperty(exports, "addVoiceFunction", { enumerable: true, get: function () { return elevenlabs_1.addVoiceFunction; } });
 Object.defineProperty(exports, "generateSpeechFunction", { enumerable: true, get: function () { return elevenlabs_1.generateSpeechFunction; } });
 Object.defineProperty(exports, "deleteVoiceFunction", { enumerable: true, get: function () { return elevenlabs_1.deleteVoiceFunction; } });
+var subscription_1 = require("./subscription");
+Object.defineProperty(exports, "subscribeToPlan", { enumerable: true, get: function () { return subscription_1.subscribeToPlan; } });
+Object.defineProperty(exports, "cancelSubscription", { enumerable: true, get: function () { return subscription_1.cancelSubscription; } });
+Object.defineProperty(exports, "portOneWebhook", { enumerable: true, get: function () { return subscription_1.portOneWebhook; } });
 //# sourceMappingURL=index.js.map

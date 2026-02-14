@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>내 프로필 — StoryForest</title>
+    <meta name="description" content="StoryForest 프로필 관리 - 개인정보 수정, 구독 관리, 계정 설정">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="auth.css">
+    <style>
+        /* ── Profile Dashboard Styles ── */
+        .profile-wrapper {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px 80px;
+        }
+
+        .profile-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .profile-header h1 {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+        }
+
+        .profile-header p {
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Dashboard Grid */
+        .dashboard {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .dash-card {
+            background: rgba(20, 20, 35, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 32px;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .dash-card:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(20, 20, 35, 0.7);
+            transform: translateY(-2px);
+        }
+
+        .dash-card-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .dash-card-title span {
+            font-size: 18px;
+        }
+
+        /* Profile Card */
+        .profile-info {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .profile-avatar-large {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #059669, #22c55e);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 700;
+            flex-shrink: 0;
+            box-shadow: 0 4px 20px rgba(34, 197, 94, 0.3);
+            overflow: hidden;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .profile-avatar-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .profile-details {
+            flex: 1;
+        }
+
+        .profile-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 4px;
+        }
+
+        .profile-email {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+        }
+
+        .profile-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-google {
+            background: rgba(66, 133, 244, 0.15);
+            color: #93bbfc;
+            border: 1px solid rgba(66, 133, 244, 0.2);
+        }
+
+        .badge-email {
+            background: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        /* Subscription Card */
+        .plan-current {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .plan-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .plan-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(5, 150, 105, 0.2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .plan-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .plan-status {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-upgrade {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #059669, #22c55e);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn-upgrade:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
+        }
+
+        /* Usage Stats */
+        .usage-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .usage-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .usage-number {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 4px;
+        }
+
+        .usage-label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+            font-weight: 500;
+        }
+
+        /* App Download Section */
+        .app-links {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .btn-store {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 20px;
+            border-radius: 14px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-store:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-playstore {
+            background: linear-gradient(135deg, rgba(52, 168, 83, 0.15), rgba(52, 168, 83, 0.05));
+            border: 1px solid rgba(52, 168, 83, 0.2);
+        }
+
+        .btn-appstore {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .store-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .store-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .store-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .coming-soon-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            background: rgba(251, 191, 36, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(251, 191, 36, 0.2);
+        }
+
+        /* Account Actions */
+        .account-actions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn-account {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        .btn-account:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        .btn-account .icon {
+            font-size: 20px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .btn-account.danger {
+            color: rgba(239, 68, 68, 0.7);
+            border-color: rgba(239, 68, 68, 0.1);
+        }
+
+        .btn-account.danger:hover {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        /* Delete Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-card {
+            background: rgba(30, 30, 50, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 24px;
+            padding: 36px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .modal-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 12px;
+        }
+
+        .modal-desc {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .modal-actions .btn-auth {
+            flex: 1;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+            color: white !important;
+            border: none !important;
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Back link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            margin-bottom: 32px;
+            transition: color 0.3s ease;
+        }
+
+        .back-link:hover {
+            color: white;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .profile-info {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .plan-current {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .usage-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .app-links {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Background decoration -->
+    <div class="auth-bg">
+        <div class="bg-circle bg-circle-1"></div>
+        <div class="bg-circle bg-circle-2"></div>
+        <div class="bg-circle bg-circle-3"></div>
+        <div class="leaf-container">
+            <div class="floating-leaf" style="--x:15%; --delay:0s; --dur:11s;"></div>
+            <div class="floating-leaf" style="--x:40%; --delay:2s; --dur:13s;"></div>
+            <div class="floating-leaf" style="--x:65%; --delay:4s; --dur:10s;"></div>
+            <div class="floating-leaf" style="--x:85%; --delay:1s; --dur:14s;"></div>
+        </div>
+    </div>
+
+    <div class="profile-wrapper">
+        <a href="index.html" class="back-link">← 홈으로 돌아가기</a>
+
+        <!-- Dashboard -->
+        <div class="dashboard">
+
+            <!-- Profile Info -->
+            <div class="dash-card">
+                <div class="dash-card-title"><span>👤</span> 프로필 정보</div>
+                <div class="profile-info">
+                    <div class="profile-avatar-large" id="profileAvatar">🌟</div>
+                    <div class="profile-details">
+                        <div class="profile-name" id="profileName">로딩 중...</div>
+                        <div class="profile-email" id="profileEmail"></div>
+                        <div class="profile-badge badge-google" id="profileBadge" style="display:none;">
+                            <span>●</span> <span id="badgeText">Google 계정</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Subscription -->
+            <div class="dash-card">
+                <div class="dash-card-title"><span>💎</span> 구독 관리</div>
+                <div class="plan-current">
+                    <div class="plan-info">
+                        <div class="plan-icon">🌱</div>
+                        <div>
+                            <div class="plan-name" id="planName">씨앗 (무료)</div>
+                            <div class="plan-status" id="planStatus">월 2편 동화 생성 가능</div>
+                        </div>
+                    </div>
+                    <a href="index.html#pricing" class="btn-upgrade">
+                        플랜 업그레이드 ✨
+                    </a>
+                </div>
+                <div class="usage-grid">
+                    <div class="usage-item">
+                        <div class="usage-number" id="usageStories">0</div>
+                        <div class="usage-label">이번 달 생성</div>
+                    </div>
+                    <div class="usage-item">
+                        <div class="usage-number" id="usageRemaining">2</div>
+                        <div class="usage-label">남은 횟수</div>
+                    </div>
+                    <div class="usage-item">
+                        <div class="usage-number" id="usageTotal">0</div>
+                        <div class="usage-label">총 생성 수</div>
+                    </div>
+                </div>
+            </div>
+
+
+
+            <!-- Account Management -->
+            <div class="dash-card">
+                <div class="dash-card-title"><span>⚙️</span> 계정 관리</div>
+                <div class="account-actions-list">
+                    <button class="btn-account" onclick="handleLogout()">
+                        <span class="icon">🚪</span>
+                        로그아웃
+                    </button>
+                    <button class="btn-account danger" onclick="showDeleteModal()">
+                        <span class="icon">⚠️</span>
+                        회원 탈퇴
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Account Modal -->
+    <div class="modal-overlay" id="deleteModal" style="display:none;">
+        <div class="modal-card">
+            <div class="modal-icon">⚠️</div>
+            <h3 class="modal-title">정말 탈퇴하시겠어요?</h3>
+            <p class="modal-desc">회원 탈퇴 시 모든 데이터가 삭제되며<br>이 작업은 되돌릴 수 없습니다.</p>
+
+            <div id="deletePasswordGroup" class="form-group" style="display:none; margin-top:16px;">
+                <label style="color: rgba(255,255,255,0.6);">비밀번호 확인</label>
+                <input type="password" id="deletePassword" placeholder="비밀번호를 입력하세요" autocomplete="current-password">
+            </div>
+
+            <div class="auth-error" id="deleteErrorBox" style="display:none;">
+                <span id="deleteErrorText"></span>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-auth btn-secondary" onclick="hideDeleteModal()">취소</button>
+                <button class="btn-auth btn-danger" id="btnConfirmDelete" onclick="handleDeleteAccount()">탈퇴하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/11.3.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.3.0/firebase-auth-compat.js"></script>
+    <script>
+        // ── Firebase Init ──
+        firebase.initializeApp({
+            apiKey: "AIzaSyBqutsdkKsPR6p28Lf3beVPhcv6Dhyk9xM",
+            authDomain: "storyforest-mvp-hsl02.firebaseapp.com",
+            projectId: "storyforest-mvp-hsl02",
+            storageBucket: "storyforest-mvp-hsl02.firebasestorage.app",
+            messagingSenderId: "580984401842",
+            appId: "1:580984401842:web:56d9d59008cb2e1b6e3eab"
+        });
+        const auth = firebase.auth();
+        const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+        // ── Auth State ──
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            try {
+                await user.reload();
+            } catch (e) {
+                auth.signOut();
+                return;
+            }
+
+            const u = auth.currentUser;
+
+            // Profile name & email
+            document.getElementById('profileName').textContent =
+                u.displayName || '동화의 숲 탐험가';
+            document.getElementById('profileEmail').textContent =
+                u.email || '';
+
+            // Avatar
+            if (u.photoURL) {
+                document.getElementById('profileAvatar').innerHTML =
+                    `<img src="${u.photoURL}" alt="프로필">`;
+            } else {
+                document.getElementById('profileAvatar').textContent =
+                    u.displayName ? u.displayName.charAt(0).toUpperCase() : '🌟';
+            }
+
+            // Provider badge
+            const providerId = u.providerData?.[0]?.providerId;
+            const badge = document.getElementById('profileBadge');
+            const badgeText = document.getElementById('badgeText');
+
+            if (providerId === 'google.com') {
+                badge.className = 'profile-badge badge-google';
+                badgeText.textContent = 'Google 계정';
+                badge.style.display = 'inline-flex';
+            } else if (providerId === 'password') {
+                badge.className = 'profile-badge badge-email';
+                badgeText.textContent = '이메일 계정';
+                badge.style.display = 'inline-flex';
+            }
+        });
+
+        // ── Logout ──
+        function handleLogout() {
+            auth.signOut();
+        }
+
+        // ── Delete Account ──
+        function showDeleteModal() {
+            const user = auth.currentUser;
+            document.getElementById('deleteErrorBox').style.display = 'none';
+
+            const isEmailUser = user?.providerData?.[0]?.providerId === 'password';
+            document.getElementById('deletePasswordGroup').style.display =
+                isEmailUser ? 'block' : 'none';
+
+            document.getElementById('deleteModal').style.display = 'flex';
+        }
+
+        function hideDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+        }
+
+        async function handleDeleteAccount() {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            const btn = document.getElementById('btnConfirmDelete');
+            btn.disabled = true;
+            btn.classList.add('loading');
+            document.getElementById('deleteErrorBox').style.display = 'none';
+
+            try {
+                const providerId = user.providerData?.[0]?.providerId;
+
+                if (providerId === 'google.com') {
+                    await user.reauthenticateWithPopup(googleProvider);
+                } else if (providerId === 'password') {
+                    const password = document.getElementById('deletePassword').value;
+                    if (!password) {
+                        showDeleteError('비밀번호를 입력해주세요.');
+                        btn.disabled = false;
+                        btn.classList.remove('loading');
+                        return;
+                    }
+                    const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+                    await user.reauthenticateWithCredential(credential);
+                }
+
+                await user.delete();
+                alert('회원 탈퇴가 완료되었습니다. 이용해 주셔서 감사합니다.');
+                window.location.href = 'index.html';
+            } catch (err) {
+                console.error('Delete account error:', err);
+                if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                    showDeleteError('비밀번호가 올바르지 않습니다.');
+                } else if (err.code === 'auth/popup-closed-by-user') {
+                    // User cancelled
+                } else {
+                    showDeleteError('탈퇴 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+                }
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        function showDeleteError(msg) {
+            const box = document.getElementById('deleteErrorBox');
+            document.getElementById('deleteErrorText').textContent = msg;
+            box.style.display = 'block';
+        }
+    </script>
+</body>
+
+</html>

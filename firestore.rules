@@ -7,22 +7,26 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // ── Books: all authenticated users can read, only author can write ──
+    // ── Books: official books readable by all, personal books only by author ──
     match /books/{bookId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null
+                  && (resource.data.isOfficial == true
+                      || resource.data.authorId == request.auth.uid);
       allow create: if request.auth != null
                     && request.resource.data.authorId == request.auth.uid;
       allow update, delete: if request.auth != null
                             && resource.data.authorId == request.auth.uid;
 
-      // Pages subcollection
+      // Pages subcollection — follows parent book access
       match /pages/{pageId} {
-        allow read: if request.auth != null;
+        allow read: if request.auth != null
+                    && (get(/databases/$(database)/documents/books/$(bookId)).data.isOfficial == true
+                        || get(/databases/$(database)/documents/books/$(bookId)).data.authorId == request.auth.uid);
         allow write: if request.auth != null
                      && get(/databases/$(database)/documents/books/$(bookId)).data.authorId == request.auth.uid;
       }
 
-      // Translations: any authenticated user can cache translations
+      // Translations: readable if book is accessible, writable by authenticated users
       match /translations/{langId} {
         allow read, write: if request.auth != null;
       }

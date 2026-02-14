@@ -45,7 +45,7 @@ interface AppState {
     popBackgroundTask: () => BackgroundTask | undefined;
 }
 
-export const useStore = create<AppState>((set: (fn: (state: AppState) => Partial<AppState>) => void, get: () => AppState) => ({
+export const useStore = create<AppState>()((set, get) => ({
     user: null,
     isLoading: true,
 
