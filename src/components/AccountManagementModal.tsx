@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { X, User, Mail, Shield, LogOut, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { signOut, deleteUser, reauthenticateWithPopup, GoogleAuthProvider, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import { signOut, deleteUser, reauthenticateWithPopup, reauthenticateWithCredential, GoogleAuthProvider, EmailAuthProvider, signInWithCredential } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { auth } from '../lib/firebase';
 import { useStore } from '../store';
 import { useTranslation } from '../hooks/useTranslation';
@@ -43,8 +45,15 @@ export const AccountManagementModal: React.FC<AccountManagementModalProps> = ({ 
         try {
             // Re-authenticate before deletion
             if (isGoogleProvider) {
-                const provider = new GoogleAuthProvider();
-                await reauthenticateWithPopup(auth.currentUser, provider);
+                if (Capacitor.isNativePlatform()) {
+                    const googleUser = await GoogleAuth.signIn();
+                    const idToken = googleUser.authentication.idToken;
+                    const credential = GoogleAuthProvider.credential(idToken);
+                    await reauthenticateWithCredential(auth.currentUser!, credential);
+                } else {
+                    const provider = new GoogleAuthProvider();
+                    await reauthenticateWithPopup(auth.currentUser, provider);
+                }
             } else if (isEmailProvider && passwordForDelete) {
                 const credential = EmailAuthProvider.credential(
                     auth.currentUser.email!,

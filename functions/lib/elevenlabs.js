@@ -96,6 +96,9 @@ exports.addVoiceFunction = (0, https_1.onCall)({
     enforceAppCheck: false,
     cors: true,
 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
     const { name, audioBase64, description } = request.data;
     if (!name || !audioBase64) {
         throw new https_1.HttpsError('invalid-argument', 'Missing name or audioBase64');
@@ -148,6 +151,9 @@ exports.generateSpeechFunction = (0, https_1.onCall)({
     enforceAppCheck: false,
     cors: true,
 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
     const { text, voiceId } = request.data;
     if (!text || !voiceId) {
         throw new https_1.HttpsError('invalid-argument', 'Missing text or voiceId');
@@ -199,6 +205,9 @@ exports.deleteVoiceFunction = (0, https_1.onCall)({
     enforceAppCheck: false,
     cors: true,
 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
     const { voiceId } = request.data;
     if (!voiceId) {
         throw new https_1.HttpsError('invalid-argument', 'Missing voiceId');

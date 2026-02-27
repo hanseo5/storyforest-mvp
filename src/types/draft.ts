@@ -18,6 +18,7 @@ export interface StoryVariables {
     message: string;
     customMessage?: string;
     targetLanguage?: string;
+    bgmId?: string; // BGM preset id
     photoContext?: PhotoContext;
     generationId?: string;
 }
@@ -38,6 +39,7 @@ export interface DraftBook {
     characters: Character[]; // New: support for multiple characters
     style: string;
     styleImage?: string | null;
+    bgmId?: string; // BGM preset id
     pageCount: number;
     prompt: string;
     status: 'editing' | 'generating' | 'ready';

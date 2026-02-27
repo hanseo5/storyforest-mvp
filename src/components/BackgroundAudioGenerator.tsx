@@ -4,6 +4,17 @@ import { generateAllBooksAudio, generateBookAudio } from '../services/bookServic
 import { deleteVoice } from '../services/elevenLabsService';
 import { getSavedVoiceById, reCloneVoiceFromSample } from '../services/voiceService';
 import { useTranslation } from '../hooks/useTranslation';
+import {
+    requestNotificationPermission,
+    showProgressNotification,
+    showDoneNotification,
+    clearProgressNotification,
+} from '../services/notificationService';
+import {
+    startForegroundService,
+    updateForegroundService,
+    stopForegroundService,
+} from '../services/foregroundService';
 import { Loader2, CheckCircle2, Mic, Music, Trash2, Download, X } from 'lucide-react';
 
 export const BackgroundAudioGenerator: React.FC = () => {
@@ -22,6 +33,29 @@ export const BackgroundAudioGenerator: React.FC = () => {
     const [dismissed, setDismissed] = useState(false);
     const doneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Helper: get notification body text for a given phase + progress
+    const getNotifBody = (phase: string, progress?: { bookTitle?: string; currentPage?: number; totalPages?: number; currentBook?: number; totalBooks?: number }) => {
+        switch (phase) {
+            case 'cloning':
+                return '🎙️ ' + t('bg_phase_cloning');
+            case 'generating': {
+                const p = progress;
+                if (p && p.totalPages && p.totalPages > 0) {
+                    const pct = Math.round(((p.currentPage || 0) / p.totalPages) * 100);
+                    const bookInfo = p.totalBooks ? ` (📚 ${p.currentBook || 1}/${p.totalBooks})` : '';
+                    return `🎵 ${p.bookTitle || ''} ${p.currentPage}/${p.totalPages}p (${pct}%)${bookInfo}`;
+                }
+                return '🎵 ' + t('bg_phase_generating');
+            }
+            case 'deleting':
+                return '🧹 ' + t('bg_phase_deleting');
+            case 'done':
+                return '✅ ' + t('bg_phase_done');
+            default:
+                return t('bg_generating');
+        }
+    };
+
     useEffect(() => {
         const processQueue = async () => {
             if (isProcessingRef.current || pendingTasks.length === 0) return;
@@ -39,6 +73,16 @@ export const BackgroundAudioGenerator: React.FC = () => {
                 setShowDone(false);
                 setDismissed(false);
 
+                // Start foreground service to keep app alive in background
+                await startForegroundService(t('bg_generating'));
+
+                // Request notification permission on first task
+                await requestNotificationPermission();
+                await showProgressNotification({
+                    phase: 'start',
+                    body: t('bg_generating'),
+                });
+
                 if (task.type === 'all') {
                     await generateAllBooksAudio(task.voiceId, (progress) => {
                         setGenerationProgress({
@@ -49,6 +93,9 @@ export const BackgroundAudioGenerator: React.FC = () => {
                             totalBooks: progress.totalBooks,
                             currentBook: progress.currentBook,
                         });
+                        const body = getNotifBody('generating', progress);
+                        showProgressNotification({ phase: 'generating', body });
+                        updateForegroundService(body);
                     });
                 } else if (task.type === 'single' && task.bookId) {
                     setGenerationProgress({
@@ -66,6 +113,8 @@ export const BackgroundAudioGenerator: React.FC = () => {
                         totalPages: 0,
                         phase: 'cloning',
                     });
+                    showProgressNotification({ phase: 'cloning', body: getNotifBody('cloning') });
+                    updateForegroundService(getNotifBody('cloning'));
                     const savedVoice = await getSavedVoiceById(task.savedVoiceId);
                     if (savedVoice?.sampleStoragePath) {
                         const tempVoiceId = await reCloneVoiceFromSample(savedVoice);
@@ -76,6 +125,8 @@ export const BackgroundAudioGenerator: React.FC = () => {
                                 totalPages: 0,
                                 phase: 'generating',
                             });
+                            showProgressNotification({ phase: 'generating', body: getNotifBody('generating') });
+                            updateForegroundService(getNotifBody('generating'));
                             // Use tempVoiceId for generation, savedVoiceId for storage
                             await generateBookAudio(task.bookId, tempVoiceId, task.savedVoiceId);
                         } finally {
@@ -97,6 +148,8 @@ export const BackgroundAudioGenerator: React.FC = () => {
                         totalPages: 0,
                         phase: 'cloning',
                     });
+                    showProgressNotification({ phase: 'cloning', body: getNotifBody('cloning') });
+                    updateForegroundService(getNotifBody('cloning'));
                     const savedVoice = await getSavedVoiceById(task.savedVoiceId);
                     if (savedVoice?.sampleStoragePath) {
                         const tempVoiceId = await reCloneVoiceFromSample(savedVoice);
@@ -107,6 +160,8 @@ export const BackgroundAudioGenerator: React.FC = () => {
                                 totalPages: 0,
                                 phase: 'generating',
                             });
+                            showProgressNotification({ phase: 'generating', body: getNotifBody('generating') });
+                            updateForegroundService(getNotifBody('generating'));
                             // Use tempVoiceId for generation, savedVoiceId for storage
                             await generateAllBooksAudio(
                                 tempVoiceId,
@@ -119,6 +174,9 @@ export const BackgroundAudioGenerator: React.FC = () => {
                                         totalBooks: progress.totalBooks,
                                         currentBook: progress.currentBook,
                                     });
+                                    const body = getNotifBody('generating', progress);
+                                    showProgressNotification({ phase: 'generating', body });
+                                    updateForegroundService(body);
                                 },
                                 task.savedVoiceId // Pass stored ID for saving
                             );
@@ -143,6 +201,8 @@ export const BackgroundAudioGenerator: React.FC = () => {
                         totalPages: 0,
                         phase: 'deleting',
                     });
+                    showProgressNotification({ phase: 'deleting', body: getNotifBody('deleting') });
+                    updateForegroundService(getNotifBody('deleting'));
                     await deleteVoice(task.voiceId);
                 }
 
@@ -154,6 +214,8 @@ export const BackgroundAudioGenerator: React.FC = () => {
                     phase: 'done',
                 });
                 setShowDone(true);
+                showDoneNotification(getNotifBody('done'));
+                await stopForegroundService();
 
                 // Auto-dismiss after 5 seconds
                 if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
@@ -163,6 +225,8 @@ export const BackgroundAudioGenerator: React.FC = () => {
 
             } catch (error) {
                 console.error('[Background] Error processing task:', error);
+                clearProgressNotification();
+                await stopForegroundService();
             } finally {
                 setGenerating(false);
                 setGenerationProgress(null);

@@ -18,6 +18,7 @@ export interface GeneratedStoryData {
     title: string;
     authorId: string;
     style: string;
+    bgmId?: string;
     pages: { pageNumber: number; text: string; imageUrl?: string }[];
     variables?: {
         childName: string;
@@ -75,15 +76,26 @@ export const publishBook = async (storyData: GeneratedStoryData): Promise<string
 
         // First create the book document to get the ID
         const currentEmail = auth.currentUser?.email;
+
+        // Clean variables: remove undefined values and non-serializable fields (like File objects)
+        const cleanVariables = storyData.variables
+            ? Object.fromEntries(
+                Object.entries(storyData.variables).filter(
+                    ([key, value]) => value !== undefined && !(value instanceof File) && key !== 'photoFile'
+                )
+            )
+            : undefined;
+
         const bookData = {
             title: storyData.title,
             authorId: storyData.authorId,
             coverUrl: '', // Will update after uploading first image
             description: `${storyData.variables?.childName || '아이'}를 위한 특별한 동화`,
             style: storyData.style,
+            bgmId: storyData.bgmId || 'musicbox',
             createdAt: Date.now(),
             originalLanguage: 'English',
-            variables: storyData.variables,
+            ...(cleanVariables ? { variables: cleanVariables } : {}),
             isOfficial: isAdminUser(currentEmail),
         };
 
@@ -154,6 +166,7 @@ export const publishDraft = async (draft: DraftBook): Promise<string> => {
             coverUrl: draft.protagonistImage || draft.pages[0]?.imageUrl || '',
             description: draft.protagonist || '',
             style: draft.style || '',
+            bgmId: draft.bgmId || 'musicbox',
             createdAt: Date.now(),
             draftId: draft.id, // Reference to original draft
             originalLanguage: draft.originalLanguage || 'English', // Language the book was written in
@@ -358,6 +371,8 @@ export const getBookById = async (bookId: string): Promise<PublishedBook | null>
             createdAt: bookData.createdAt,
             description: bookData.description,
             style: bookData.style,
+            originalLanguage: bookData.originalLanguage,
+            isOfficial: bookData.isOfficial,
             pages
         };
 

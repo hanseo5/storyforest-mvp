@@ -52,6 +52,68 @@ const ART_STYLE_PROMPTS = {
 const getArtStylePrompt = (styleId) => {
     return ART_STYLE_PROMPTS[styleId || 'watercolor'] || ART_STYLE_PROMPTS.watercolor;
 };
+/**
+ * Robustly parse JSON from Gemini response.
+ * Gemini sometimes returns JSON with trailing commas, single quotes,
+ * or other non-standard formatting. This function attempts multiple
+ * cleanup strategies before failing.
+ */
+const parseGeminiJson = (rawText, fnName) => {
+    // Step 1: Strip markdown code fences
+    let jsonStr = rawText.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+    // Step 2: Extract JSON object
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    if (jsonMatch)
+        jsonStr = jsonMatch[0];
+    // Step 3: Try parsing as-is
+    try {
+        return JSON.parse(jsonStr);
+    }
+    catch {
+        console.warn(`[${fnName}] Direct JSON.parse failed, attempting cleanup...`);
+    }
+    // Step 4: Fix common issues
+    let cleaned = jsonStr
+        // Remove trailing commas before } or ]
+        .replace(/,\s*([\]}])/g, '$1')
+        // Replace single quotes with double quotes (careful with apostrophes in text)
+        .replace(/(?<=[\[{,:])\s*'([^']*)'\s*(?=[,\]}:])/g, '"$1"')
+        // Remove control characters
+        .replace(/[\x00-\x1F\x7F]/g, (c) => c === '\n' || c === '\t' ? c : '')
+        // Fix unquoted property names like { title: "..." }
+        .replace(/(\{|,)\s*([a-zA-Z_]\w*)\s*:/g, '$1"$2":');
+    try {
+        return JSON.parse(cleaned);
+    }
+    catch {
+        console.warn(`[${fnName}] Cleanup attempt 1 failed, trying more aggressive cleanup...`);
+    }
+    // Step 5: More aggressive - extract title and pages manually
+    try {
+        const titleMatch = cleaned.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        const pagesMatch = cleaned.match(/"pages"\s*:\s*\[([\s\S]*)\]\s*\}?\s*$/);
+        if (titleMatch && pagesMatch) {
+            const title = titleMatch[1];
+            const pagesStr = pagesMatch[1];
+            // Extract individual page objects
+            const pageRegex = /\{\s*"pageNumber"\s*:\s*(\d+)\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}/g;
+            const pages = [];
+            let match;
+            while ((match = pageRegex.exec(pagesStr)) !== null) {
+                pages.push({ pageNumber: parseInt(match[1]), text: match[2] });
+            }
+            if (pages.length > 0) {
+                console.log(`[${fnName}] Manually extracted ${pages.length} pages from malformed JSON`);
+                return { title, pages };
+            }
+        }
+    }
+    catch {
+        // Fall through to error
+    }
+    console.error(`[${fnName}] All JSON parsing attempts failed. Raw text (first 2000 chars):`, rawText.substring(0, 2000));
+    throw new https_1.HttpsError('internal', `Failed to parse Gemini response as JSON in ${fnName}`);
+};
 const INTEREST_LABELS = {
     dinosaur: '공룡',
     car: '자동차',
@@ -77,11 +139,14 @@ const MESSAGE_LABELS = {
 };
 exports.generateStory = (0, https_1.onCall)({
     secrets: [geminiApiKey],
-    timeoutSeconds: 300,
+    timeoutSeconds: 540,
     enforceAppCheck: false,
     cors: true,
     memory: '2GiB',
 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
     const variables = request.data;
     const generationId = variables.generationId;
     if (!variables.childName || !variables.childAge) {
@@ -109,7 +174,7 @@ exports.generateStory = (0, https_1.onCall)({
     const targetLanguage = variables.targetLanguage || 'Korean';
     let storyPrompt;
     if (targetLanguage === 'English') {
-        storyPrompt = `You are a world-renowned children's picture book author. Create a short story with 10 to 15 pages based on the following information. Choose the page count that best fits the story's natural flow.
+        storyPrompt = `You are a world-renowned children's picture book author. Create a short story with 10 to 15 pages based on the following information. Choose the optimal page count for best story flow.
 
 Protagonist: ${variables.childName} (${variables.childAge} years old)
 Interests: ${interestLabels.join(', ')}
@@ -129,7 +194,7 @@ Story Structure (adjust proportionally to total page count):
 - ~30% Climax
 - ~15% Conclusion (deliver the message)
 
-IMPORTANT: Write the entire story in English.
+IMPORTANT: Write the entire story in English. Create 10 to 15 pages.
 
 Return format (JSON only, no markdown):
 {"title": "Title", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
@@ -155,7 +220,7 @@ Return format (JSON only, no markdown):
 - 約30% クライマックス
 - 約15% 結末（教訓を伝える）
 
-重要: 物語全体を日本語で書いてください。
+重要: 物語全体を日本語で書いてください。10〜15ページで作成してください。
 
 返却形式（JSONのみ、マークダウンなし）:
 {"title": "タイトル", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
@@ -184,7 +249,7 @@ Return format (JSON only, no markdown):
 - 약 30%: 클라이맥스
 - 약 15%: 결말 (메시지 전달)
 
-중요: 이야기 전체를 한국어로 작성해주세요.
+중요: 이야기 전체를 한국어로 작성해주세요. 10~15페이지로 만들어주세요.
 
 반환 형식 (JSON만, 마크다운 없이):
 {"title": "동화 제목", "pages": [{"pageNumber": 1, "text": "..."}, ...]}`;
@@ -208,41 +273,32 @@ Return format (JSON only, no markdown):
         }
         const data = await response.json();
         const text = data.candidates[0].content.parts[0].text;
-        // Parse JSON from response
-        let jsonStr = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
-        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-        if (jsonMatch)
-            jsonStr = jsonMatch[0];
-        const storyData = JSON.parse(jsonStr);
+        // Parse JSON from response (with robust cleanup)
+        const storyData = parseGeminiJson(text, 'generateStory');
         console.log('[generateStory] Story generated:', storyData.title);
         // Update progress: text done, starting images
         updateProgress({ phase: 'images', totalPages: storyData.pages.length, currentPage: 0 });
-        // Generate images for each page
+        // Build character description for visual consistency across all pages
+        const characterDesc = `A ${variables.childAge}-year-old child named ${variables.childName} with a round, friendly face and bright curious eyes`;
+        // Generate images sequentially for character/style consistency
         const generatedPages = [];
         for (let i = 0; i < storyData.pages.length; i++) {
             const page = storyData.pages[i];
-            // Update image progress
             updateProgress({ currentPage: i + 1 });
             try {
                 const imagePrompt = `Children's picture book illustration, ${style}:
 Scene: ${page.text}
-Main character: ${variables.childName}, a ${variables.childAge}-year-old child
+Main character: ${characterDesc}
 Elements: ${interestLabels.join(', ')}
+Page ${i + 1} of ${storyData.pages.length} - maintain consistent character appearance throughout the book
 Style: Warm, inviting, child-friendly, full page illustration with no text`;
                 const imageUrl = await generateImageInternal(imagePrompt, style, API_KEY);
-                generatedPages.push({
-                    pageNumber: page.pageNumber,
-                    text: page.text,
-                    imageUrl,
-                });
+                generatedPages.push({ pageNumber: page.pageNumber, text: page.text, imageUrl });
+                console.log(`[generateStory] Image ${i + 1}/${storyData.pages.length} generated`);
             }
             catch (error) {
                 console.error(`[generateStory] Image generation failed for page ${i + 1}:`, error);
-                generatedPages.push({
-                    pageNumber: page.pageNumber,
-                    text: page.text,
-                    imageUrl: undefined,
-                });
+                generatedPages.push({ pageNumber: page.pageNumber, text: page.text, imageUrl: undefined });
             }
         }
         const result = {
@@ -336,11 +392,14 @@ Generate an illustration that captures this scene perfectly.`;
 }
 exports.generatePhotoStory = (0, https_1.onCall)({
     secrets: [geminiApiKey],
-    timeoutSeconds: 300,
+    timeoutSeconds: 540,
     enforceAppCheck: false,
     cors: true,
     memory: '2GiB',
 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
     const variables = request.data;
     const generationId = variables.generationId;
     console.log('[generatePhotoStory] Called with:', {
@@ -414,7 +473,7 @@ exports.generatePhotoStory = (0, https_1.onCall)({
 - 약 30%: 클라이맥스
 - 약 15%: 교훈과 마무리
 
-10~15페이지 사이에서 적절한 분량을 만들어주세요.
+10~15페이지로 만들어주세요.
 다음 JSON 형식만 반환해주세요 (마크다운 없이):
 {"title": "동화 제목", "pages": [{"pageNumber": 1, "text": "..."}, {"pageNumber": 2, "text": "..."}, ...]}`
     });
@@ -445,45 +504,35 @@ exports.generatePhotoStory = (0, https_1.onCall)({
             console.error('[generatePhotoStory] No text in response:', JSON.stringify(data).substring(0, 500));
             throw new https_1.HttpsError('internal', 'No text generated from Gemini');
         }
-        // Parse JSON
-        let jsonStr = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
-        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-        if (jsonMatch)
-            jsonStr = jsonMatch[0];
-        const storyData = JSON.parse(jsonStr);
+        // Parse JSON from response (with robust cleanup)
+        const storyData = parseGeminiJson(text, 'generatePhotoStory');
         console.log('[generatePhotoStory] Story generated:', storyData.title);
         // Update progress: text done, starting images
         updateProgress({ phase: 'images', totalPages: storyData.pages.length, currentPage: 0 });
-        // Generate images for each page
+        // Build character description for visual consistency across all pages
+        const characterDesc = `A ${variables.childAge}-year-old child named ${variables.childName} with a round, friendly face and bright curious eyes`;
+        // Generate images sequentially for character/style consistency
         const generatedPages = [];
-        console.log(`[generatePhotoStory] Starting image generation for ${storyData.pages.length} pages`);
+        console.log(`[generatePhotoStory] Starting image generation for ${storyData.pages.length} pages (sequential)`);
         for (let i = 0; i < storyData.pages.length; i++) {
             const page = storyData.pages[i];
-            // Update image progress
             updateProgress({ currentPage: i + 1 });
             try {
                 console.log(`[generatePhotoStory] Generating image ${i + 1}/${storyData.pages.length}...`);
                 const imagePrompt = `Children's picture book illustration, ${style}:
 Scene: ${page.text}
-Main character: ${variables.childName}, a ${variables.childAge}-year-old child
+Main character: ${characterDesc}
 Elements: ${interestLabels.join(', ')}
+Page ${i + 1} of ${storyData.pages.length} - maintain consistent character appearance throughout the book
 Style: Warm, inviting, child-friendly, full page illustration with no text`;
                 const imageUrl = await generateImageInternal(imagePrompt, style, API_KEY);
-                generatedPages.push({
-                    pageNumber: page.pageNumber,
-                    text: page.text,
-                    imageUrl,
-                });
+                generatedPages.push({ pageNumber: page.pageNumber, text: page.text, imageUrl });
                 console.log(`[generatePhotoStory] Image ${i + 1} generated successfully`);
             }
             catch (error) {
                 const errMsg = error instanceof Error ? error.message : String(error);
                 console.error(`[generatePhotoStory] Image generation failed for page ${i + 1}:`, errMsg);
-                generatedPages.push({
-                    pageNumber: page.pageNumber,
-                    text: page.text,
-                    imageUrl: undefined,
-                });
+                generatedPages.push({ pageNumber: page.pageNumber, text: page.text, imageUrl: undefined });
             }
         }
         const result = {
@@ -518,6 +567,9 @@ exports.translateContent = (0, https_1.onCall)({
     enforceAppCheck: false,
     cors: true,
 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
     const { text, targetLanguage } = request.data;
     if (!text || !targetLanguage) {
         throw new https_1.HttpsError('invalid-argument', 'Missing text or targetLanguage');
@@ -561,6 +613,9 @@ exports.generateImageCF = (0, https_1.onCall)({
     cors: true,
     memory: '1GiB',
 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
     const { prompt, style, referenceImages, context, aspectRatio } = request.data;
     // Aspect ratio configuration
     const ratioConfig = aspectRatio === '3:4'

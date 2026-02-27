@@ -90,7 +90,7 @@ export const generateImage = async (
 
     } catch (error) {
         console.error('[ImageService] Error generating image:', error);
-        return `https://source.unsplash.com/1920x1080/?${encodeURIComponent(prompt)},${style},illustration`;
+        return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080' fill='%23e2e8f0'%3E%3Crect width='1920' height='1080'/%3E%3Ctext x='960' y='540' text-anchor='middle' fill='%2394a3b8' font-size='32'%3EImage%3C/text%3E%3C/svg%3E`;
     }
 };
 

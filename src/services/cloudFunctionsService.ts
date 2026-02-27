@@ -81,11 +81,11 @@ export const generateStorySecure = async (
     onProgress?: (current: number, total: number, isImage: boolean) => void
 ): Promise<GeneratedStory> => {
 
-    // Set timeout to 5 minutes (300000ms) for story generation which takes a long time
+    // Set timeout to 9 minutes (540000ms) for story generation which takes a long time
     const generateStoryFn = httpsCallable<StoryVariables, GeneratedStory>(
         functions,
         'generateStory',
-        { timeout: 300000 }
+        { timeout: 540000 }
     );
 
     try {
@@ -117,7 +117,7 @@ export const generatePhotoStorySecure = async (
     const generatePhotoStoryFn = httpsCallable<PhotoStoryVariables, GeneratedStory>(
         functions,
         'generatePhotoStory',
-        { timeout: 300000 }
+        { timeout: 540000 }
     );
 
     try {

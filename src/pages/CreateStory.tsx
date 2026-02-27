@@ -1,12 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Sparkles, Check, Edit3, Home, BookOpen, Camera, X, Image as ImageIcon, Palette, User as UserIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles, Check, Edit3, Home, BookOpen, Camera, X, Image as ImageIcon, Palette, User as UserIcon, Loader2, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
 import { useTranslation } from '../hooks/useTranslation';
 import { BookManagementModal } from '../components/BookManagementModal';
 import { AccountManagementModal } from '../components/AccountManagementModal';
 import { trackStoryCreated, trackPhotoUploaded } from '../services/analyticsService';
+import { BGM_PRESETS, DEFAULT_BGM_ID, getBgmFilePath } from '../constants/bgm';
 import owlImage from '../assets/mascots/owl.png';
 
 // 관심사 프리셋
@@ -55,6 +56,7 @@ interface StoryVariables {
     childAge: number;
     interests: string[];
     artStyle: string;
+    bgmId: string;
     message: string;
     customMessage: string;
     photoFile?: File;
@@ -76,6 +78,7 @@ export const CreateStory: React.FC = () => {
         childAge: 5,
         interests: [],
         artStyle: 'watercolor',
+        bgmId: DEFAULT_BGM_ID,
         message: '',
         customMessage: '',
         photoFile: undefined,
@@ -84,6 +87,56 @@ export const CreateStory: React.FC = () => {
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // BGM preview
+    const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
+    const bgmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [previewingBgm, setPreviewingBgm] = useState<string | null>(null);
+
+    const stopBgmPreview = useCallback(() => {
+        if (bgmAudioRef.current) {
+            bgmAudioRef.current.pause();
+            bgmAudioRef.current.src = '';
+            bgmAudioRef.current = null;
+        }
+        if (bgmTimerRef.current) {
+            clearTimeout(bgmTimerRef.current);
+            bgmTimerRef.current = null;
+        }
+        setPreviewingBgm(null);
+    }, []);
+
+    const playBgmPreview = useCallback((bgmId: string) => {
+        stopBgmPreview();
+        const path = getBgmFilePath(bgmId);
+        if (!path) return; // 'none' or no file
+
+        const audio = new Audio(path);
+        audio.volume = 0.5;
+        bgmAudioRef.current = audio;
+        setPreviewingBgm(bgmId);
+
+        audio.play().catch(() => setPreviewingBgm(null));
+
+        // Stop after 4 seconds with fade-out
+        bgmTimerRef.current = setTimeout(() => {
+            if (bgmAudioRef.current) {
+                const fadeOut = setInterval(() => {
+                    if (bgmAudioRef.current && bgmAudioRef.current.volume > 0.05) {
+                        bgmAudioRef.current.volume = Math.max(0, bgmAudioRef.current.volume - 0.1);
+                    } else {
+                        clearInterval(fadeOut);
+                        stopBgmPreview();
+                    }
+                }, 80);
+            }
+        }, 3200);
+    }, [stopBgmPreview]);
+
+    // Cleanup on unmount or step change
+    useEffect(() => {
+        return () => stopBgmPreview();
+    }, [step, stopBgmPreview]);
 
     const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -546,6 +599,53 @@ export const CreateStory: React.FC = () => {
                                             )}
                                             <div className="text-3xl mb-2">{style.emoji}</div>
                                             <div className="text-sm font-bold">{t(`style_${style.id}`)}</div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* BGM Selection */}
+                            <div className="mt-8 text-center mb-4">
+                                <h3 className="text-lg font-bold text-amber-800">
+                                    🎶 {t('choose_bgm')}
+                                </h3>
+                                <p className="text-sm text-amber-600 mt-1">{t('bgm_hint')}</p>
+                            </div>
+
+                            <div className="grid grid-cols-5 gap-2 sm:gap-3 max-w-md mx-auto">
+                                {BGM_PRESETS.map(bgm => {
+                                    const isSelected = variables.bgmId === bgm.id;
+                                    const isPreviewing = previewingBgm === bgm.id;
+                                    return (
+                                        <button
+                                            key={bgm.id}
+                                            onClick={() => {
+                                                setVariables(prev => ({ ...prev, bgmId: bgm.id }));
+                                                playBgmPreview(bgm.id);
+                                            }}
+                                            className={`relative p-3 rounded-xl transition-all ${isSelected
+                                                ? `bg-gradient-to-br ${bgm.color} text-white shadow-lg scale-105 ring-2 ring-amber-400`
+                                                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 hover:scale-105 border-2 border-amber-200'
+                                            }`}
+                                        >
+                                            {isSelected && (
+                                                <div className="absolute top-1 right-1 bg-white text-amber-500 rounded-full p-0.5 shadow">
+                                                    <Check size={10} />
+                                                </div>
+                                            )}
+                                            <div className="text-2xl mb-1 relative">
+                                                {bgm.emoji}
+                                                {isPreviewing && (
+                                                    <motion.div
+                                                        className="absolute -top-1 -right-1"
+                                                        animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
+                                                        transition={{ duration: 0.8, repeat: Infinity }}
+                                                    >
+                                                        <Volume2 size={12} className={isSelected ? 'text-white' : 'text-amber-500'} />
+                                                    </motion.div>
+                                                )}
+                                            </div>
+                                            <div className="text-[10px] font-bold leading-tight">{t(`bgm_${bgm.id}`)}</div>
                                         </button>
                                     );
                                 })}

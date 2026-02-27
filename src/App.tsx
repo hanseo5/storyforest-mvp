@@ -20,6 +20,7 @@ import { StoryGenerating } from './pages/StoryGenerating';
 import { StoryPreview } from './pages/StoryPreview';
 
 import { BackgroundAudioGenerator } from './components/BackgroundAudioGenerator';
+import { FeedbackWidget } from './components/FeedbackWidget';
 import { ToastContainer } from './components/Toast';
 
 // Track page views on route changes
@@ -192,6 +193,7 @@ function App() {
 
       {/* Background Audio Generation Progress */}
       <BackgroundAudioGenerator />
+      <FeedbackWidget />
       <ToastContainer />
     </BrowserRouter>
   );

@@ -20,10 +20,15 @@ export const clearAudioCache = (bookId?: string) => {
     if (bookId) {
         for (const key of audioCache.keys()) {
             if (key.startsWith(bookId)) {
+                const blobUrl = audioCache.get(key);
+                if (blobUrl) URL.revokeObjectURL(blobUrl);
                 audioCache.delete(key);
             }
         }
     } else {
+        for (const blobUrl of audioCache.values()) {
+            URL.revokeObjectURL(blobUrl);
+        }
         audioCache.clear();
     }
 };

@@ -73,8 +73,8 @@ RETURN ONLY THIS JSON (one line, properly escaped):
 
 // ==================== Image Placeholder (no API call) ====================
 
-export const generateImagePlaceholder = (keyword: string) => {
-    return `https://source.unsplash.com/800x600/?${encodeURIComponent(keyword)},illustration`;
+export const generateImagePlaceholder = (_keyword: string) => {
+    return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' fill='%23e2e8f0'%3E%3Crect width='800' height='600'/%3E%3Ctext x='400' y='300' text-anchor='middle' fill='%2394a3b8' font-size='24'%3EImage%3C/text%3E%3C/svg%3E`;
 };
 
 // ==================== Story Pages ====================
@@ -168,7 +168,7 @@ export const generatePageImage = (pageText: string, style: string): string => {
         .slice(0, 3)
         .join(',');
     const styleKeyword = style.toLowerCase().replace(/[^a-z\s]/g, '').split(' ')[0] || 'illustration';
-    return `https://source.unsplash.com/1920x1080/?${keywords},${styleKeyword},children,story`;
+    return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080' fill='%23e2e8f0'%3E%3Crect width='1920' height='1080'/%3E%3Ctext x='960' y='540' text-anchor='middle' fill='%2394a3b8' font-size='32'%3E${encodeURIComponent(styleKeyword)}%3C/text%3E%3C/svg%3E`;
 };
 
 // ==================== Image Prompt Suggestion ====================
@@ -465,24 +465,9 @@ export const generateCompleteStory = async (
 
         return story;
     } catch (error) {
-        console.error('[GeminiService] Cloud Function error, falling back to mock:', error);
-
-        const interestLabels = variables.interests.map(id => INTEREST_LABELS[id] || id);
-        const messageLabel = variables.message === 'custom'
-            ? variables.customMessage
-            : MESSAGE_LABELS[variables.message] || variables.message;
-
-        const mockPages = Array.from({ length: 10 }, (_, i) => ({
-            pageNumber: i + 1,
-            text: getMockPageText(variables.childName, interestLabels, messageLabel || '', i + 1),
-            imageUrl: undefined
-        }));
-
-        return {
-            title: `${variables.childName}의 마법 모험`,
-            style,
-            pages: mockPages
-        };
+        console.error('[GeminiService] Cloud Function error:', error);
+        // Don't fall back to mock — let error propagate so Firestore listener can recover
+        throw error;
     }
 };
 
@@ -542,19 +527,9 @@ export const generatePhotoBasedStory = async (
 
         return story;
     } catch (error) {
-        console.error('[GeminiService] Cloud Function error, falling back to mock:', error);
-
-        const mockPages = Array.from({ length: 10 }, (_, i) => ({
-            pageNumber: i + 1,
-            text: getMockPhotoStoryText(variables.childName, variables.photoDescription || '', i + 1),
-            imageUrl: undefined
-        }));
-
-        return {
-            title: `${variables.childName}의 특별한 하루`,
-            style,
-            pages: mockPages
-        };
+        console.error('[GeminiService] Cloud Function error:', error);
+        // Don't fall back to mock — let error propagate so Firestore listener can recover
+        throw error;
     }
 };
 

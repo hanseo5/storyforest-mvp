@@ -1,5 +1,4 @@
 import axios from 'axios';
-import * as functions from 'firebase-functions';
 
 const PORTONE_API_URL = 'https://api.iamport.kr';
 
@@ -12,11 +11,9 @@ export class PortOneClient {
     private tokenExpiresAt: number = 0;
 
     constructor() {
-        // Use Firebase config or fallback to environment variables
-        // For MVP, if config is missing, it might fail.
-        // User needs to set these via: firebase functions:config:set portone.api_key="..." portone.api_secret="..."
-        this.apiKey = functions.config().portone?.api_key || process.env.PORTONE_API_KEY || '';
-        this.apiSecret = functions.config().portone?.api_secret || process.env.PORTONE_API_SECRET || '';
+        // Use environment variables (compatible with both v1 and v2 Cloud Functions)
+        this.apiKey = process.env.PORTONE_API_KEY || '';
+        this.apiSecret = process.env.PORTONE_API_SECRET || '';
     }
 
     private async getToken(): Promise<string> {

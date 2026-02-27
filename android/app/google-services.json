@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "580984401842-1poe6q788fftedan95ckta0a90cp93gi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.storyforest.app",
+            "certificate_hash": "afbb1194ea323c5f116872b80222fddf68e9a9d3"
+          }
+        },
+        {
+          "client_id": "580984401842-c4d2di94e9saik48hlu3re93p8nef0sj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.storyforest.app",
+            "certificate_hash": "95d18d047c56a5a683c744c47ce35663eb4aa8e4"
+          }
+        },
+        {
           "client_id": "580984401842-anh7p8iiiv1fd8bms0q6t1tmptbaq7kd.apps.googleusercontent.com",
           "client_type": 3
         }

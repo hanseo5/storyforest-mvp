@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, BookOpen, Image as ImageIcon, Feather, Star, Palette } from 'lucide-react';
+import { Sparkles, BookOpen, Image as ImageIcon, Feather, Star, Palette, RefreshCw, Home } from 'lucide-react';
 import { generateCompleteStory, generatePhotoBasedStory } from '../services/geminiService';
 import {
     createGenerationId,
@@ -56,11 +56,13 @@ export const StoryGenerating: React.FC = () => {
     const [pageProgress, setPageProgress] = useState({ current: 0, total: 12 });
     const [statusMessage, setStatusMessage] = useState(t('gen_writing_story'));
     const [owlMessageKey, setOwlMessageKey] = useState(OWL_MESSAGE_KEYS.text[0]);
+    const [errorState, setErrorState] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
     const isGenerating = useRef(false);
     const generationIdRef = useRef<string | null>(null);
     const unsubscribeRef = useRef<(() => void) | null>(null);
     const httpCompletedRef = useRef(false);
+    const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Pre-compute sparkle stars for complete phase (must be called unconditionally)
     const completeSparkles = useMemo(() => {
@@ -127,8 +129,7 @@ export const StoryGenerating: React.FC = () => {
             } else if (progress.status === 'error') {
                 console.error('[StoryGenerating] Error from Firestore:', progress.error);
                 clearPendingGeneration();
-                alert(t('error'));
-                navigate('/create');
+                setErrorState({ show: true, message: t('gen_error_server') });
             }
         });
     }, [navigate, navigateToPreview, t]);
@@ -236,18 +237,16 @@ export const StoryGenerating: React.FC = () => {
                     setStatusMessage(t('gen_writing_story'));
                     // Firestore listener is already active, just wait
                     // Set a 10 minute timeout as last resort
-                    setTimeout(() => {
+                    fallbackTimerRef.current = setTimeout(() => {
                         if (!httpCompletedRef.current) {
                             console.error('[StoryGenerating] Timeout waiting for background result');
                             clearPendingGeneration();
-                            alert(t('error'));
-                            navigate('/create');
+                            setErrorState({ show: true, message: t('gen_error_timeout') });
                         }
                     }, 10 * 60 * 1000);
                 } else {
                     clearPendingGeneration();
-                    alert(t('error'));
-                    navigate('/create');
+                    setErrorState({ show: true, message: t('gen_error_network') });
                 }
             }
         };
@@ -258,6 +257,10 @@ export const StoryGenerating: React.FC = () => {
             if (unsubscribeRef.current) {
                 unsubscribeRef.current();
                 unsubscribeRef.current = null;
+            }
+            if (fallbackTimerRef.current) {
+                clearTimeout(fallbackTimerRef.current);
+                fallbackTimerRef.current = null;
             }
         };
     }, [state, navigate, t, targetLanguage, setupFirestoreListener, navigateToPreview]);
@@ -584,6 +587,47 @@ export const StoryGenerating: React.FC = () => {
                         <span className="text-sm font-bold">{t('gen_done')}</span>
                     </div>
                 </div>
+
+                {/* Error Overlay */}
+                <AnimatePresence>
+                    {errorState.show && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        >
+                            <motion.div
+                                initial={{ scale: 0.9 }}
+                                animate={{ scale: 1 }}
+                                className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center"
+                            >
+                                <div className="text-5xl mb-4">😢</div>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">{t('gen_error_title')}</h3>
+                                <p className="text-sm text-gray-500 mb-6 leading-relaxed">{errorState.message}</p>
+                                <div className="flex flex-col gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setErrorState({ show: false, message: '' });
+                                            navigate('/create', { state: { variables: state.variables } });
+                                        }}
+                                        className="w-full bg-gradient-to-r from-amber-400 to-orange-400 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg hover:from-amber-500 hover:to-orange-500 transition-all"
+                                    >
+                                        <RefreshCw size={18} />
+                                        {t('gen_error_retry')}
+                                    </button>
+                                    <button
+                                        onClick={() => navigate('/')}
+                                        className="w-full bg-gray-100 text-gray-600 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-all"
+                                    >
+                                        <Home size={18} />
+                                        {t('gen_error_home')}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </motion.div>
         </div>
     );

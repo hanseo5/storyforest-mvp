@@ -5,11 +5,11 @@
   "targets": {
     "storyforest-mvp-hsl02": {
       "hosting": {
-        "homepage": [
+        "app": [
           "storyforest-mvp-hsl02"
         ],
-        "app": [
-          "storyforest-app"
+        "homepage": [
+          "storyforest-home-hsl02"
         ]
       }
     }

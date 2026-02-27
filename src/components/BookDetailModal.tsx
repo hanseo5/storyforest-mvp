@@ -72,11 +72,6 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
                 // 3. Not in Firestore - Manual translate (Fall-back if background sync hasn't reached it)
                 let currentPages = fullBook?.pages;
                 if (!currentPages && book.id) {
-                    // We might have fetched fullBook in the other effect, or we can fetch it here
-                    // But relying on the other effect is safer if we just wait or reuse the promise? 
-                    // For simplicity, let's just re-fetch if needed or check fullBook state
-                    // If fullBook is not yet set, we might need to wait or fetch again.
-                    // To avoid race conditions, let's just fetch here if not present.
                     const { getBookById } = await import('../services/bookService');
                     const data = await getBookById(book.id);
                     if (data) {
@@ -111,7 +106,8 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({ book, onClose 
         };
 
         prepareContent();
-    }, [book, book?.id, targetLanguage, translationCache, setTranslatedBook, fullBook]); // Added fullBook dependency
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [book?.id, targetLanguage]); // Removed fullBook to prevent infinite loop
 
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (modalRef.current && !modalRef.current.contains(e.target as Node)) {

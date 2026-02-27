@@ -20,6 +20,7 @@ interface GeneratedPage {
 interface GeneratedStory {
     title: string;
     style: string;
+    bgmId?: string;
     pages: GeneratedPage[];
 }
 
@@ -96,6 +97,7 @@ export const StoryPreview: React.FC = () => {
                 title: story.title,
                 authorId: user.uid,
                 style: story.style,
+                bgmId: variables?.bgmId || story.bgmId || 'musicbox',
                 pages: story.pages.map(p => ({
                     pageNumber: p.pageNumber,
                     text: p.text,

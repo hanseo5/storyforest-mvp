@@ -75,6 +75,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── Feedback: users can create, read own, admin reads all ──
+    match /feedback/{feedbackId} {
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null
+                  && resource.data.userId == request.auth.uid;
+      allow update, delete: if false; // Only from admin SDK
+    }
+
     // ── Story generations: read own, write from Cloud Functions only ──
     match /story_generations/{genId} {
       allow read: if request.auth != null;

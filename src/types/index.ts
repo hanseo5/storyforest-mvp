@@ -14,6 +14,7 @@ export interface Book {
     createdAt: number;
     description?: string;
     style?: string; // e.g., "watercolor", "cartoon"
+    bgmId?: string; // BGM preset id (e.g., "musicbox", "fun", "none")
     originalLanguage?: string; // Language the book was originally written in
     isOfficial?: boolean; // true = admin/official content visible to all users
 }

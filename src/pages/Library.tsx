@@ -40,10 +40,6 @@ export const Library: React.FC = () => {
     const [showVoiceRecord, setShowVoiceRecord] = useState(false);
     const [showVoiceStorage, setShowVoiceStorage] = useState(false);
     const [showVoiceWarning, setShowVoiceWarning] = useState(false);
-    const [showSquirrel, setShowSquirrel] = useState(true);
-    const squirrelMessages = [t('squirrel_lib_1'), t('squirrel_lib_2'), t('squirrel_lib_3'), t('squirrel_lib_4')];
-    const [squirrelMessage, setSquirrelMessage] = useState(squirrelMessages[0]);
-    const [isSquirrelHovered, setIsSquirrelHovered] = useState(false);
     const [isAudioOptimizing, setIsAudioOptimizing] = useState(false);
 
     // Drafts state
@@ -172,14 +168,6 @@ export const Library: React.FC = () => {
         }
     }, [officialBooks.length, myBooks.length, targetLanguage]);
 
-    // Cycle squirrel messages
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setSquirrelMessage(squirrelMessages[Math.floor(Math.random() * squirrelMessages.length)]);
-        }, 4000);
-        return () => clearInterval(interval);
-    }, []);
-
     return (
         <div className="min-h-screen bg-gradient-to-b from-green-50 via-emerald-50 to-amber-50 relative overflow-hidden">
             {/* Forest Background Decorations */}
@@ -293,100 +281,6 @@ export const Library: React.FC = () => {
                     </div>
                 </div>
             )}
-
-            {/* LARGE Squirrel Mascot - Fixed Position */}
-            <AnimatePresence>
-                {showSquirrel && (
-                    <motion.div
-                        initial={{ opacity: 0, x: 100 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 100 }}
-                        className="fixed bottom-0 right-0 z-40 flex flex-col items-end"
-                        onMouseEnter={() => setIsSquirrelHovered(true)}
-                        onMouseLeave={() => setIsSquirrelHovered(false)}
-                    >
-                        {/* Close button */}
-                        <button
-                            onClick={() => setShowSquirrel(false)}
-                            className="absolute top-4 right-4 z-50 p-1 bg-white/80 rounded-full text-gray-500 hover:text-gray-700 hover:bg-white transition-all"
-                        >
-                            <X size={16} />
-                        </button>
-
-                        {/* Speech bubble */}
-                        <motion.div
-                            key={squirrelMessage}
-                            initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            className="mr-8 mb-2 bg-white rounded-2xl px-6 py-4 shadow-2xl border-3 border-emerald-300 max-w-xs"
-                        >
-                            <motion.p
-                                className="text-emerald-800 font-bold text-base text-center"
-                                animate={isSquirrelHovered ? { scale: [1, 1.05, 1] } : {}}
-                                transition={{ duration: 0.5 }}
-                            >
-                                {squirrelMessage}
-                            </motion.p>
-                            <div className="absolute -bottom-3 right-20 w-5 h-5 bg-white border-r-3 border-b-3 border-emerald-300 transform rotate-45" />
-                        </motion.div>
-
-                        {/* LARGE Squirrel */}
-                        <motion.div
-                            className="relative"
-                            animate={isSquirrelHovered ? {
-                                scale: 1.05,
-                                rotate: [-3, 3, -3],
-                            } : {
-                                y: [0, -10, 0],
-                            }}
-                            transition={isSquirrelHovered ? {
-                                rotate: { duration: 0.5, repeat: Infinity },
-                                scale: { duration: 0.3 },
-                            } : {
-                                duration: 3,
-                                repeat: Infinity,
-                                ease: 'easeInOut',
-                            }}
-                        >
-                            {/* Glow effect */}
-                            <div className="absolute inset-0 bg-emerald-400/20 rounded-full blur-3xl scale-75" />
-
-                            <motion.img
-                                src={squirrelImage}
-                                alt="다람쥐"
-                                className="w-44 md:w-56 lg:w-64 h-auto object-contain drop-shadow-2xl relative z-10"
-                                style={{ filter: 'drop-shadow(0 15px 30px rgba(5, 150, 105, 0.35))' }}
-                            />
-
-                            {/* Floating stars when hovered */}
-                            <AnimatePresence>
-                                {isSquirrelHovered && [...Array(5)].map((_, i) => (
-                                    <motion.div
-                                        key={i}
-                                        initial={{ opacity: 0, scale: 0 }}
-                                        animate={{
-                                            opacity: [0, 1, 0],
-                                            scale: [0, 1.3, 0],
-                                            y: [0, -60 - Math.random() * 40],
-                                            x: Math.random() * 80 - 40,
-                                        }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 1, delay: i * 0.15 }}
-                                        className="absolute"
-                                        style={{
-                                            left: `${30 + Math.random() * 40}%`,
-                                            top: '20%',
-                                            color: ['#facc15', '#f472b6', '#60a5fa', '#34d399'][i % 4],
-                                        }}
-                                    >
-                                        <Star size={16} fill="currentColor" />
-                                    </motion.div>
-                                ))}
-                            </AnimatePresence>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
 
             {/* Floating Side Icons - Left */}
             <div className="fixed left-4 top-6 z-30 flex flex-col gap-3">

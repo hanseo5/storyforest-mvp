@@ -11,6 +11,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import type { Book, Page } from '../types';
 import { useTranslation } from '../hooks/useTranslation';
 import { detectLanguage, cleanTranslatedText } from '../utils/textUtils';
+import { getBgmFilePath, DEFAULT_BGM_ID } from '../constants/bgm';
 
 export const BookReader: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -41,15 +42,15 @@ export const BookReader: React.FC = () => {
     const chunksRef = useRef<Blob[]>([]);
 
     // Background Music State
-    const [isBgmPlaying, setIsBgmPlaying] = useState(true);
-    const [bgmVolume] = useState(0.3);
-    const bgmRef = useRef<HTMLAudioElement | null>(null);
+    const [isBgmPlaying, setIsBgmPlaying] = useState(false);
+    const bgmContextRef = useRef<AudioContext | null>(null);
+    const bgmGainRef = useRef<GainNode | null>(null);
+    const bgmTimerRef = useRef<number | null>(null);
+    const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
+    const bgmModeRef = useRef<'file' | 'synth' | null>(null);
 
     // Playback Speed State
     const [playbackRate, setPlaybackRate] = useState(0.9); // Default slow as requested
-
-    // Free ambient music from Bensound (Creative Commons License)
-    const BGM_URL = 'https://www.bensound.com/bensound-music/bensound-slowmotion.mp3';
 
     // Update voice playback rate dynamically
     useEffect(() => {
@@ -157,48 +158,225 @@ export const BookReader: React.FC = () => {
         loadTranslation();
     }, [id, targetLanguage, setTranslatedBook]);
 
-    // Background music initialization
-    useEffect(() => {
-        const bgm = new Audio(BGM_URL);
-        bgm.loop = true;
-        bgm.volume = bgmVolume;
-        bgmRef.current = bgm;
+    // ── BGM: use book's selected bgmId, fallback to synthesized music-box ──
 
-        // Auto-play with user interaction handling
-        const attemptPlay = () => {
-            bgm.play().catch(() => {
+    // Try to start BGM from /bgm/{bgmId}.mp3 file
+    const startFileBgm = (): Promise<boolean> => {
+        const bgmId = book?.bgmId || DEFAULT_BGM_ID;
+        if (bgmId === 'none') return Promise.resolve(true); // No BGM wanted
+
+        const filePath = getBgmFilePath(bgmId);
+        if (!filePath) return Promise.resolve(false); // No file for this preset → synth
+
+        return new Promise((resolve) => {
+            fetch(filePath, { method: 'HEAD' })
+                .then((res) => {
+                    if (!res.ok) {
+                        resolve(false);
+                        return;
+                    }
+                    const audio = new Audio(filePath);
+                    audio.loop = true;
+                    audio.volume = 0.25;
+                    bgmAudioRef.current = audio;
+                    bgmModeRef.current = 'file';
+
+                    audio.play()
+                        .then(() => resolve(true))
+                        .catch(() => resolve(true)); // Autoplay blocked but ref is set
+                })
+                .catch(() => resolve(false));
+        });
+    };
+
+    // Synthesized music-box fallback (Web Audio API)
+    const startSynthBgm = () => {
+        if (bgmContextRef.current) return;
+
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        bgmContextRef.current = ctx;
+        bgmModeRef.current = 'synth';
+
+        const master = ctx.createGain();
+        master.gain.value = 0.18;
+        master.connect(ctx.destination);
+        bgmGainRef.current = master;
+
+        const noteFreq = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
+
+        const playBell = (freq: number, time: number, dur: number, vol: number) => {
+            const o1 = ctx.createOscillator();
+            const o2 = ctx.createOscillator();
+            o1.type = 'sine';
+            o2.type = 'triangle';
+            o1.frequency.value = freq;
+            o2.frequency.value = freq * 2;
+            o2.detune.value = 3;
+            const env = ctx.createGain();
+            env.gain.setValueAtTime(0, time);
+            env.gain.linearRampToValueAtTime(vol, time + 0.01);
+            env.gain.exponentialRampToValueAtTime(0.001, time + dur);
+            const mix = ctx.createGain();
+            mix.gain.value = 0.5;
+            o1.connect(env); o2.connect(mix); mix.connect(env); env.connect(master);
+            o1.start(time); o2.start(time); o1.stop(time + dur); o2.stop(time + dur);
+        };
+
+        const playPad = (notes: number[], time: number, dur: number, vol: number) => {
+            notes.forEach((midi, i) => {
+                const osc = ctx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.value = noteFreq(midi);
+                osc.detune.value = (i - 1) * 4;
+                const env = ctx.createGain();
+                env.gain.setValueAtTime(0, time);
+                env.gain.linearRampToValueAtTime(vol, time + 0.4);
+                env.gain.setValueAtTime(vol, time + dur - 0.5);
+                env.gain.linearRampToValueAtTime(0, time + dur);
+                osc.connect(env); env.connect(master);
+                osc.start(time); osc.stop(time + dur + 0.1);
             });
         };
 
-        if (isBgmPlaying) {
-            attemptPlay();
-        }
+        const melody = [
+            { n: 72, t: 0.0 }, { n: 76, t: 0.4 }, { n: 79, t: 0.8 }, { n: 84, t: 1.2 },
+            { n: 81, t: 1.8 }, { n: 79, t: 2.2 }, { n: 76, t: 2.6 }, { n: 79, t: 3.0 },
+            { n: 84, t: 3.6 }, { n: 81, t: 4.0 }, { n: 79, t: 4.4 }, { n: 76, t: 4.8 },
+            { n: 74, t: 5.4 }, { n: 76, t: 5.8 }, { n: 72, t: 6.2 },
+            { n: 79, t: 7.2 }, { n: 81, t: 7.6 }, { n: 84, t: 8.0 }, { n: 81, t: 8.6 },
+            { n: 76, t: 9.0 }, { n: 79, t: 9.3 }, { n: 84, t: 9.6 }, { n: 79, t: 10.0 },
+            { n: 81, t: 10.6 }, { n: 79, t: 11.0 }, { n: 76, t: 11.4 }, { n: 74, t: 11.8 },
+            { n: 72, t: 12.4 }, { n: 76, t: 12.8 }, { n: 72, t: 13.4 },
+        ];
+        const LOOP_DURATION = 14.4;
+        const padChords = [
+            { notes: [48, 55, 60, 64], t: 0, dur: 7.2 },
+            { notes: [53, 57, 60, 65], t: 7.2, dur: 7.2 },
+        ];
 
-        // Cleanup on unmount
+        const scheduleLoop = (startTime: number) => {
+            melody.forEach(({ n, t }) => playBell(noteFreq(n), startTime + t, 1.2, 0.35));
+            padChords.forEach(({ notes, t, dur }) => playPad(notes, startTime + t, dur, 0.06));
+        };
+
+        let nextLoopTime = ctx.currentTime + 0.05;
+        scheduleLoop(nextLoopTime);
+        scheduleLoop(nextLoopTime + LOOP_DURATION);
+        nextLoopTime += LOOP_DURATION * 2;
+
+        const scheduleAhead = () => {
+            if (!bgmContextRef.current) return;
+            const now = bgmContextRef.current.currentTime;
+            while (nextLoopTime < now + LOOP_DURATION * 2) {
+                scheduleLoop(nextLoopTime);
+                nextLoopTime += LOOP_DURATION;
+            }
+            bgmTimerRef.current = window.setTimeout(scheduleAhead, 10000);
+        };
+        bgmTimerRef.current = window.setTimeout(scheduleAhead, 10000);
+    };
+
+    // Unified start: try file first, then synth
+    const startBgm = async () => {
+        if (bgmAudioRef.current || bgmContextRef.current) return;
+        const bgmId = book?.bgmId || DEFAULT_BGM_ID;
+        if (bgmId === 'none') return; // User chose no BGM
+
+        const fileOk = await startFileBgm();
+        if (!fileOk) {
+            startSynthBgm();
+        }
+    };
+
+    const stopBgm = () => {
+        // Stop file-based BGM
+        if (bgmAudioRef.current) {
+            bgmAudioRef.current.pause();
+            bgmAudioRef.current.src = '';
+            bgmAudioRef.current = null;
+        }
+        // Stop synth-based BGM
+        if (bgmTimerRef.current) {
+            clearTimeout(bgmTimerRef.current);
+            bgmTimerRef.current = null;
+        }
+        if (bgmContextRef.current) {
+            bgmContextRef.current.close().catch(() => {});
+            bgmContextRef.current = null;
+        }
+        bgmGainRef.current = null;
+        bgmModeRef.current = null;
+    };
+
+    // Auto-play BGM on mount; if blocked by browser, start on first user interaction
+    useEffect(() => {
+        let removed = false;
+
+        const tryAutoPlay = async () => {
+            if (bgmAudioRef.current || bgmContextRef.current) return;
+            await startBgm();
+
+            // Check if playing (file mode)
+            if (bgmAudioRef.current && !bgmAudioRef.current.paused) {
+                setIsBgmPlaying(true);
+                return;
+            }
+            // Check if playing (synth mode)
+            const ctx = bgmContextRef.current;
+            if (ctx && ctx.state === 'running') {
+                setIsBgmPlaying(true);
+                return;
+            }
+
+            // Autoplay blocked → wait for user gesture
+            const onGesture = () => {
+                if (bgmAudioRef.current) {
+                    bgmAudioRef.current.play().then(() => setIsBgmPlaying(true)).catch(() => {});
+                } else if (bgmContextRef.current && bgmContextRef.current.state !== 'running') {
+                    bgmContextRef.current.resume().then(() => setIsBgmPlaying(true)).catch(() => {});
+                } else if (!bgmContextRef.current && !bgmAudioRef.current) {
+                    startBgm().then(() => setIsBgmPlaying(true));
+                }
+                doCleanup();
+            };
+            const doCleanup = () => {
+                removed = true;
+                document.removeEventListener('touchstart', onGesture);
+                document.removeEventListener('click', onGesture);
+            };
+            document.addEventListener('touchstart', onGesture, { once: true });
+            document.addEventListener('click', onGesture, { once: true });
+        };
+
+        tryAutoPlay();
+
         return () => {
-            bgm.pause();
-            bgm.src = '';
-            bgmRef.current = null;
+            if (!removed) {
+                document.removeEventListener('touchstart', () => {});
+                document.removeEventListener('click', () => {});
+            }
+            stopBgm();
         };
     }, []);
 
-    // Toggle BGM
+    // Toggle BGM - pause / resume
     const toggleBgm = () => {
-        if (!bgmRef.current) return;
         if (isBgmPlaying) {
-            bgmRef.current.pause();
+            if (bgmAudioRef.current) {
+                bgmAudioRef.current.pause();
+            } else {
+                stopBgm();
+            }
+            setIsBgmPlaying(false);
         } else {
-            bgmRef.current.play();
+            if (bgmAudioRef.current) {
+                bgmAudioRef.current.play().catch(() => {});
+            } else {
+                startBgm();
+            }
+            setIsBgmPlaying(true);
         }
-        setIsBgmPlaying(!isBgmPlaying);
     };
-
-    // Update BGM volume
-    useEffect(() => {
-        if (bgmRef.current) {
-            bgmRef.current.volume = bgmVolume;
-        }
-    }, [bgmVolume]);
 
     useEffect(() => {
         if (!id) return;
@@ -504,36 +682,39 @@ export const BookReader: React.FC = () => {
                     alt={`Page ${currentPage.pageNumber}`}
                     className="w-full h-full object-cover opacity-80"
                 />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 md:from-black/60 md:to-black/80" />
             </div>
 
             {/* Top Left: Home */}
             <button
                 onClick={() => navigate('/library')}
-                className="absolute top-6 left-6 z-50 bg-white/20 hover:bg-white/30 backdrop-blur-md p-3 rounded-full text-white transition-all"
+                className="absolute top-3 left-3 md:top-6 md:left-6 z-50 bg-white/20 hover:bg-white/30 backdrop-blur-md p-1.5 md:p-3 rounded-full text-white transition-all"
                 aria-label={t('return_to_library')}
             >
-                <Home size={24} />
+                <Home size={16} className="md:hidden" />
+                <Home size={24} className="hidden md:block" />
             </button>
 
             {/* Top Right: Speed Toggle */}
             <button
                 onClick={toggleSpeed}
-                className="absolute top-6 right-20 z-50 backdrop-blur-md px-3 py-2 rounded-full text-white transition-all bg-white/20 hover:bg-white/30 flex items-center gap-1 font-bold text-sm"
+                className="absolute top-3 right-14 md:top-6 md:right-20 z-50 backdrop-blur-md px-2 py-1 md:px-3 md:py-2 rounded-full text-white transition-all bg-white/20 hover:bg-white/30 flex items-center gap-0.5 md:gap-1 font-bold text-[10px] md:text-sm"
                 title="Playback Speed"
             >
-                <Gauge size={16} />
+                <Gauge size={12} className="md:hidden" />
+                <Gauge size={16} className="hidden md:block" />
                 <span>{playbackRate.toFixed(1)}x</span>
             </button>
 
             {/* Top Right: BGM Toggle */}
             <button
                 onClick={toggleBgm}
-                className={`absolute top-6 right-6 z-50 backdrop-blur-md p-3 rounded-full text-white transition-all ${isBgmPlaying ? 'bg-purple-500/60 hover:bg-purple-500/80' : 'bg-white/20 hover:bg-white/30'}`}
+                className={`absolute top-3 right-3 md:top-6 md:right-6 z-50 backdrop-blur-md p-1.5 md:p-3 rounded-full text-white transition-all ${isBgmPlaying ? 'bg-purple-500/60 hover:bg-purple-500/80' : 'bg-white/20 hover:bg-white/30'}`}
                 aria-label={isBgmPlaying ? t('bgm_on') : t('bgm_off')}
                 title={isBgmPlaying ? t('bgm_on') : t('bgm_off')}
             >
-                {isBgmPlaying ? <Music size={24} /> : <VolumeX size={24} />}
+                {isBgmPlaying ? <Music size={16} className="md:hidden" /> : <VolumeX size={16} className="md:hidden" />}
+                {isBgmPlaying ? <Music size={24} className="hidden md:block" /> : <VolumeX size={24} className="hidden md:block" />}
             </button>
 
             {/* Audio Controls OR Recording Controls */}
@@ -569,7 +750,7 @@ export const BookReader: React.FC = () => {
                     )}
                 </div>
             ) : (
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 bg-black/60 backdrop-blur-md px-6 py-2 rounded-full flex items-center gap-6 text-white border border-white/10">
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-black/60 backdrop-blur-md px-3 py-1 md:px-6 md:py-2 rounded-full flex items-center gap-3 md:gap-6 text-white border border-white/10">
 
                     <button
                         onClick={togglePlay}
@@ -578,20 +759,28 @@ export const BookReader: React.FC = () => {
                         aria-label={isPlaying ? "Pause" : "Play"}
                     >
                         {isAudioLoading ? (
-                            <Loader size={24} className="animate-spin" />
+                            <Loader size={18} className="animate-spin md:hidden" />
                         ) : isPlaying ? (
-                            <Pause size={24} fill="currentColor" />
+                            <Pause size={18} fill="currentColor" className="md:hidden" />
                         ) : (
-                            <Play size={24} fill="currentColor" />
+                            <Play size={18} fill="currentColor" className="md:hidden" />
+                        )}
+                        {isAudioLoading ? (
+                            <Loader size={24} className="animate-spin hidden md:block" />
+                        ) : isPlaying ? (
+                            <Pause size={24} fill="currentColor" className="hidden md:block" />
+                        ) : (
+                            <Play size={24} fill="currentColor" className="hidden md:block" />
                         )}
                     </button>
-                    <div className="h-1 w-24 bg-gray-600 rounded-full overflow-hidden">
+                    <div className="h-1 w-16 md:w-24 bg-gray-600 rounded-full overflow-hidden">
                         <div
                             className="h-full bg-yellow-400 transition-all duration-[200ms]"
                             style={{ width: isPlaying ? '100%' : '0%' }}
                         />
                     </div>
-                    <Volume2 size={20} className="text-gray-400" />
+                    <Volume2 size={14} className="text-gray-400 md:hidden" />
+                    <Volume2 size={20} className="text-gray-400 hidden md:block" />
                 </div>
             )}
 
@@ -616,27 +805,29 @@ export const BookReader: React.FC = () => {
             {pageIndex > 0 && (
                 <button
                     onClick={handlePrev}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-4 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all"
+                    className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-40 p-2 md:p-4 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
                     aria-label="Previous Page"
                 >
-                    <ArrowLeft size={48} />
+                    <ArrowLeft size={28} className="md:hidden" />
+                    <ArrowLeft size={48} className="hidden md:block" />
                 </button>
             )}
 
             {!isLastPage && (
                 <button
                     onClick={handleNext}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-4 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-all"
+                    className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-40 p-2 md:p-4 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all"
                     aria-label="Next Page"
                 >
-                    <ArrowRight size={48} />
+                    <ArrowRight size={28} className="md:hidden" />
+                    <ArrowRight size={48} className="hidden md:block" />
                 </button>
             )}
 
             {/* Text Overlay */}
-            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-[90%] max-w-3xl z-40 text-center">
-                <div className="bg-black/60 backdrop-blur-md p-8 rounded-3xl border border-white/10 shadow-2xl">
-                    <p className="text-xl md:text-3xl font-medium text-white leading-relaxed font-serif drop-shadow-md">
+            <div className="absolute bottom-2 md:bottom-12 left-1/2 -translate-x-1/2 w-[88%] md:w-[92%] max-w-3xl z-40 text-center">
+                <div className="bg-black/50 backdrop-blur-sm p-2.5 md:p-8 rounded-xl md:rounded-3xl border border-white/10 shadow-2xl">
+                    <p className="text-xs md:text-xl lg:text-3xl font-medium text-white leading-snug md:leading-relaxed font-serif drop-shadow-md">
                         {(() => {
                             // Robust Language Detection
                             // If the text contains Korean characters, assume it is Korean regardless of metadata
@@ -653,7 +844,7 @@ export const BookReader: React.FC = () => {
                             return cleanTranslatedText(text);
                         })()}
                     </p>
-                    <p className="text-xs text-gray-400 mt-4 uppercase tracking-widest">
+                    <p className="text-[8px] md:text-xs text-gray-400 mt-1 md:mt-4 uppercase tracking-wider md:tracking-widest">
                         {t('page_of', { current: String(pageIndex + 1), total: String(book.pages.length) })}
                     </p>
                 </div>

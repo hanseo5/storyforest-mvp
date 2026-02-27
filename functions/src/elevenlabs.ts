@@ -108,7 +108,11 @@ export const addVoiceFunction = onCall(
         enforceAppCheck: false,
         cors: true,
     },
-    async (request: { data: { name: string; audioBase64: string; description?: string } }): Promise<string> => {
+    async (request: { auth?: { uid: string }; data: { name: string; audioBase64: string; description?: string } }): Promise<string> => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+
         const { name, audioBase64, description } = request.data;
 
         if (!name || !audioBase64) {
@@ -170,7 +174,11 @@ export const generateSpeechFunction = onCall(
         enforceAppCheck: false,
         cors: true,
     },
-    async (request: { data: { text: string; voiceId: string } }): Promise<string> => {
+    async (request: { auth?: { uid: string }; data: { text: string; voiceId: string } }): Promise<string> => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+
         const { text, voiceId } = request.data;
 
         if (!text || !voiceId) {
@@ -228,7 +236,11 @@ export const deleteVoiceFunction = onCall(
         enforceAppCheck: false,
         cors: true,
     },
-    async (request: { data: { voiceId: string } }): Promise<void> => {
+    async (request: { auth?: { uid: string }; data: { voiceId: string } }): Promise<void> => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'Authentication required');
+        }
+
         const { voiceId } = request.data;
 
         if (!voiceId) {

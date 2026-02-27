@@ -26,15 +26,6 @@
   ],
   "hosting": [
     {
-      "target": "homepage",
-      "public": "homepage",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ]
-    },
-    {
       "target": "app",
       "public": "dist",
       "ignore": [
@@ -47,6 +38,15 @@
           "source": "**",
           "destination": "/index.html"
         }
+      ]
+    },
+    {
+      "target": "homepage",
+      "public": "homepage",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
       ]
     }
   ],

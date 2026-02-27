@@ -125,44 +125,45 @@ export const Home: React.FC = () => {
             </div>
 
             {/* Header */}
-            <header className="relative z-50 px-6 py-4">
+            <header className="relative z-50 px-2 py-1 md:px-6 md:py-4">
                 <div className="max-w-6xl mx-auto flex items-center justify-between">
                     {/* Logo */}
                     <motion.div
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-3"
+                        className="flex items-center gap-1.5 md:gap-3"
                     >
-                        <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
-                            <span className="text-3xl">🌲</span>
+                        <div className="w-7 h-7 md:w-14 md:h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-lg md:rounded-2xl flex items-center justify-center shadow-lg">
+                            <span className="text-sm md:text-3xl">🌲</span>
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-emerald-800">STORYFOREST</h1>
-                            <p className="text-sm text-emerald-600">{t('app_subtitle')}</p>
+                            <h1 className="text-sm md:text-2xl font-bold text-emerald-800">STORYFOREST</h1>
+                            <p className="text-[10px] md:text-sm text-emerald-600 hidden md:block">{t('app_subtitle')}</p>
                         </div>
                     </motion.div>
 
                     {/* User Profile */}
-                    <div className="flex items-center gap-3 bg-white/60 backdrop-blur-md px-4 py-2 rounded-full shadow-md border border-white/50">
+                    <div className="flex items-center gap-1.5 md:gap-3 bg-white/60 backdrop-blur-md px-1.5 py-0.5 md:px-4 md:py-2 rounded-full shadow-md border border-white/50">
                         {user?.photoURL && (
-                            <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full border-2 border-emerald-200" />
+                            <img src={user.photoURL} alt="User" className="w-5 h-5 md:w-10 md:h-10 rounded-full border-2 border-emerald-200" />
                         )}
-                        <span className="text-sm font-medium text-emerald-700 hidden sm:block">
+                        <span className="text-[10px] md:text-sm font-medium text-emerald-700 hidden sm:block">
                             {user?.displayName || t('default_user')}
                         </span>
                         <button
                             onClick={() => auth.signOut()}
-                            className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors"
+                            className="p-0.5 md:p-2 text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors"
                             title={t('logout')}
                         >
-                            <LogOut size={20} />
+                            <LogOut size={14} className="md:hidden" />
+                            <LogOut size={20} className="hidden md:block" />
                         </button>
                     </div>
                 </div>
             </header>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 md:p-6 relative z-10">
+            <div className="flex-1 flex flex-row gap-1.5 md:gap-4 px-1.5 py-1 md:p-6 relative z-10 min-h-0">
                 {/* MAKE Mode - Owl Section */}
                 <motion.div
                     initial={{ opacity: 0, x: -50 }}
@@ -172,7 +173,7 @@ export const Home: React.FC = () => {
                     whileTap={{ scale: 0.98 }}
                     onHoverStart={() => setHoveredSection('owl')}
                     onHoverEnd={() => setHoveredSection(null)}
-                    className="flex-1 bg-gradient-to-br from-amber-100 via-orange-50 to-yellow-100 rounded-3xl cursor-pointer relative overflow-hidden border-4 border-amber-300/60 shadow-xl hover:shadow-2xl hover:border-amber-400 transition-all duration-300 group min-h-[400px] md:min-h-[500px]"
+                    className="flex-1 bg-gradient-to-br from-amber-100 via-orange-50 to-yellow-100 rounded-2xl md:rounded-3xl cursor-pointer relative overflow-hidden border-2 md:border-4 border-amber-300/60 shadow-xl hover:shadow-2xl hover:border-amber-400 transition-all duration-300 group md:min-h-[500px]"
                     onClick={() => handleNavigate('/create')}
                 >
                     {/* Background effects */}
@@ -206,28 +207,28 @@ export const Home: React.FC = () => {
                     </div>
 
                     {/* Content */}
-                    <div className="relative z-10 h-full flex flex-col p-6 md:p-8">
+                    <div className="relative z-10 h-full flex flex-col p-2 md:p-8">
                         {/* Title area */}
                         <div className="flex-shrink-0">
-                            <span className="inline-block px-4 py-2 bg-amber-500 text-white text-sm font-bold rounded-full mb-3 shadow-lg">
+                            <span className="inline-block px-1.5 py-0.5 md:px-4 md:py-2 bg-amber-500 text-white text-[10px] md:text-sm font-bold rounded-full mb-0.5 md:mb-3 shadow-lg">
                                 ✏️ CREATE
                             </span>
-                            <h2 className="text-2xl md:text-4xl font-bold text-amber-800 mb-2">
+                            <h2 className="text-base md:text-4xl font-bold text-amber-800 mb-0 md:mb-2 leading-tight">
                                 {t('make_story')}
                             </h2>
-                            <p className="text-amber-700/80 text-base md:text-lg">
+                            <p className="text-amber-700/80 text-[10px] md:text-lg hidden md:block">
                                 {t('make_story_desc')}
                             </p>
                         </div>
 
-                        {/* Owl mascot - LARGE and centered */}
-                        <div className="flex-1 flex items-center justify-center relative mt-4">
-                            {/* Large speech bubble */}
+                        {/* Owl mascot - centered */}
+                        <div className="flex-1 flex items-center justify-center relative mt-0 md:mt-4">
+                            {/* Large speech bubble - hidden on phone */}
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: 0.6, type: 'spring' }}
-                                className="absolute -top-2 md:top-0 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-6 py-4 shadow-xl border-3 border-amber-300 z-20"
+                                className="absolute -top-2 md:top-0 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-3 py-2 md:px-6 md:py-4 shadow-xl border-3 border-amber-300 z-20 hidden md:block"
                             >
                                 <motion.p
                                     className="text-amber-800 font-bold text-base md:text-lg text-center"
@@ -239,9 +240,9 @@ export const Home: React.FC = () => {
                                 <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border-r-3 border-b-3 border-amber-300 transform rotate-45" />
                             </motion.div>
 
-                            {/* OWL - Very Large and Animated */}
+                            {/* OWL - Animated */}
                             <motion.div
-                                className="relative mt-16"
+                                className="relative mt-0 md:mt-16"
                                 animate={hoveredSection === 'owl' ? {
                                     scale: 1.1,
                                     rotate: [-2, 2, -2],
@@ -263,13 +264,13 @@ export const Home: React.FC = () => {
                                 <motion.img
                                     src={owlImage}
                                     alt="부엉이"
-                                    className="w-48 md:w-72 lg:w-80 h-auto drop-shadow-2xl relative z-10"
-                                    style={{ filter: 'drop-shadow(0 20px 30px rgba(180, 83, 9, 0.3))' }}
+                                    className="w-16 md:w-72 lg:w-80 h-auto drop-shadow-xl relative z-10"
+                                    style={{ filter: 'drop-shadow(0 10px 15px rgba(180, 83, 9, 0.2))' }}
                                 />
 
                                 {/* Feather icon floating */}
                                 <motion.div
-                                    className="absolute -right-4 top-0 text-amber-500"
+                                    className="absolute -right-4 top-0 text-amber-500 hidden md:block"
                                     animate={{
                                         rotate: [0, 15, 0],
                                         y: [0, -10, 0],
@@ -283,12 +284,13 @@ export const Home: React.FC = () => {
                     </div>
 
                     {/* Action button at bottom */}
-                    <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                    <div className="absolute bottom-1 md:bottom-4 left-0 right-0 flex justify-center">
                         <motion.div
-                            className="bg-amber-500 text-white px-8 py-3 rounded-full font-bold text-lg shadow-lg flex items-center gap-2"
+                            className="bg-amber-500 text-white px-3 py-1 md:px-8 md:py-3 rounded-full font-bold text-xs md:text-lg shadow-lg flex items-center gap-1 md:gap-2"
                             animate={hoveredSection === 'owl' ? { scale: 1.05 } : { scale: 1 }}
                         >
-                            <BookOpen size={22} />
+                            <BookOpen size={12} className="md:hidden" />
+                            <BookOpen size={22} className="hidden md:block" />
                             {t('create_btn')}
                         </motion.div>
                     </div>
@@ -303,7 +305,7 @@ export const Home: React.FC = () => {
                     whileTap={{ scale: 0.98 }}
                     onHoverStart={() => setHoveredSection('squirrel')}
                     onHoverEnd={() => setHoveredSection(null)}
-                    className="flex-1 bg-gradient-to-br from-emerald-100 via-green-50 to-teal-100 rounded-3xl cursor-pointer relative overflow-hidden border-4 border-emerald-300/60 shadow-xl hover:shadow-2xl hover:border-emerald-400 transition-all duration-300 group min-h-[400px] md:min-h-[500px]"
+                    className="flex-1 bg-gradient-to-br from-emerald-100 via-green-50 to-teal-100 rounded-2xl md:rounded-3xl cursor-pointer relative overflow-hidden border-2 md:border-4 border-emerald-300/60 shadow-xl hover:shadow-2xl hover:border-emerald-400 transition-all duration-300 group md:min-h-[500px]"
                     onClick={() => handleNavigate('/library')}
                 >
                     {/* Background effects */}
@@ -342,28 +344,28 @@ export const Home: React.FC = () => {
                     </div>
 
                     {/* Content */}
-                    <div className="relative z-10 h-full flex flex-col p-6 md:p-8">
+                    <div className="relative z-10 h-full flex flex-col p-2 md:p-8">
                         {/* Title area */}
                         <div className="flex-shrink-0">
-                            <span className="inline-block px-4 py-2 bg-emerald-500 text-white text-sm font-bold rounded-full mb-3 shadow-lg">
+                            <span className="inline-block px-1.5 py-0.5 md:px-4 md:py-2 bg-emerald-500 text-white text-[10px] md:text-sm font-bold rounded-full mb-0.5 md:mb-3 shadow-lg">
                                 📖 READ
                             </span>
-                            <h2 className="text-2xl md:text-4xl font-bold text-emerald-800 mb-2">
+                            <h2 className="text-base md:text-4xl font-bold text-emerald-800 mb-0 md:mb-2 leading-tight">
                                 {t('read_story')}
                             </h2>
-                            <p className="text-emerald-700/80 text-base md:text-lg">
+                            <p className="text-emerald-700/80 text-[10px] md:text-lg hidden md:block">
                                 {t('read_story_desc')}
                             </p>
                         </div>
 
-                        {/* Squirrel mascot - LARGE and centered */}
-                        <div className="flex-1 flex items-center justify-center relative mt-4">
-                            {/* Large speech bubble */}
+                        {/* Squirrel mascot - centered */}
+                        <div className="flex-1 flex items-center justify-center relative mt-0 md:mt-4">
+                            {/* Large speech bubble - hidden on phone */}
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.8 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 transition={{ delay: 0.7, type: 'spring' }}
-                                className="absolute -top-2 md:top-0 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-6 py-4 shadow-xl border-3 border-emerald-300 z-20"
+                                className="absolute -top-2 md:top-0 left-1/2 -translate-x-1/2 bg-white rounded-2xl px-3 py-2 md:px-6 md:py-4 shadow-xl border-3 border-emerald-300 z-20 hidden md:block"
                             >
                                 <motion.p
                                     className="text-emerald-800 font-bold text-base md:text-lg text-center"
@@ -375,9 +377,9 @@ export const Home: React.FC = () => {
                                 <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-white border-r-3 border-b-3 border-emerald-300 transform rotate-45" />
                             </motion.div>
 
-                            {/* SQUIRREL - Very Large and Animated */}
+                            {/* SQUIRREL - Animated */}
                             <motion.div
-                                className="relative mt-16"
+                                className="relative mt-0 md:mt-16"
                                 animate={hoveredSection === 'squirrel' ? {
                                     scale: 1.1,
                                     rotate: [-2, 2, -2],
@@ -400,13 +402,13 @@ export const Home: React.FC = () => {
                                 <motion.img
                                     src={squirrelImage}
                                     alt="다람쥐"
-                                    className="w-48 md:w-72 lg:w-80 h-auto drop-shadow-2xl relative z-10"
-                                    style={{ filter: 'drop-shadow(0 20px 30px rgba(5, 150, 105, 0.3))' }}
+                                    className="w-16 md:w-72 lg:w-80 h-auto drop-shadow-xl relative z-10"
+                                    style={{ filter: 'drop-shadow(0 10px 15px rgba(5, 150, 105, 0.2))' }}
                                 />
 
                                 {/* Music notes floating */}
                                 <motion.div
-                                    className="absolute -left-4 top-8 text-emerald-500"
+                                    className="absolute -left-4 top-8 text-emerald-500 hidden md:block"
                                     animate={{
                                         rotate: [0, -15, 0],
                                         y: [0, -8, 0],
@@ -420,12 +422,13 @@ export const Home: React.FC = () => {
                     </div>
 
                     {/* Action button at bottom */}
-                    <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                    <div className="absolute bottom-1 md:bottom-4 left-0 right-0 flex justify-center">
                         <motion.div
-                            className="bg-emerald-500 text-white px-8 py-3 rounded-full font-bold text-lg shadow-lg flex items-center gap-2"
+                            className="bg-emerald-500 text-white px-3 py-1 md:px-8 md:py-3 rounded-full font-bold text-xs md:text-lg shadow-lg flex items-center gap-1 md:gap-2"
                             animate={hoveredSection === 'squirrel' ? { scale: 1.05 } : { scale: 1 }}
                         >
-                            <BookOpen size={22} />
+                            <BookOpen size={12} className="md:hidden" />
+                            <BookOpen size={22} className="hidden md:block" />
                             {t('read_btn')}
                         </motion.div>
                     </div>
@@ -433,8 +436,8 @@ export const Home: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <footer className="relative z-10 text-center py-4 text-emerald-600/60 text-sm">
-                <p>{t('footer_tagline')}</p>
+            <footer className="relative z-10 text-center py-1 md:py-4 text-emerald-600/60 text-xs md:text-sm">
+                <p className="hidden md:block">{t('footer_tagline')}</p>
             </footer>
         </div>
     );

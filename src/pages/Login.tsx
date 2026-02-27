@@ -2,12 +2,15 @@
 import React, { useState } from 'react';
 import {
     signInWithPopup,
+    signInWithCredential,
     GoogleAuthProvider,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     sendEmailVerification,
     signOut,
 } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { auth } from '../lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { Sparkles, Star, Mail, ArrowRight, ArrowLeft, Loader2, MailCheck, RefreshCw } from 'lucide-react';
@@ -48,15 +51,29 @@ export const Login: React.FC = () => {
         setLoading(true);
         clearError();
         try {
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            if (Capacitor.isNativePlatform()) {
+                // Native: use Capacitor Google Auth plugin
+                const googleUser = await GoogleAuth.signIn();
+                const idToken = googleUser.authentication.idToken;
+                const credential = GoogleAuthProvider.credential(idToken);
+                await signInWithCredential(auth, credential);
+            } else {
+                // Web: use Firebase popup
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            }
             // onAuthStateChanged in App.tsx will set user and navigate
             const { trackLogin } = await import('../services/analyticsService');
             trackLogin({ method: 'google' });
         } catch (err: unknown) {
-            if (err instanceof Error && err.message.includes('popup-closed-by-user')) {
-                // User closed popup – ignore
+            if (err instanceof Error && (
+                err.message.includes('popup-closed-by-user') ||
+                err.message.includes('popup_closed') ||
+                err.message.includes('SIGN_IN_CANCELLED')
+            )) {
+                // User closed popup/cancelled – ignore
             } else {
+                console.error('[Login] Google sign-in error:', err);
                 setError(t('login_error_google'));
             }
         } finally {
@@ -193,14 +210,14 @@ export const Login: React.FC = () => {
         const prefix = forSignUp ? 'signup' : 'login';
 
         return (
-            <div className="space-y-2.5">
+            <div className="space-y-1.5 md:space-y-2.5">
                 {/* Google */}
                 <motion.button
                     onClick={handleGoogleLogin}
                     disabled={loading}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full bg-white border-2 border-gray-200 text-gray-700 py-3 px-4 rounded-2xl font-bold hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-3 transition-all shadow-sm text-sm disabled:opacity-50"
+                    className="w-full bg-white border-2 border-gray-200 text-gray-700 py-2 md:py-3 px-3 md:px-4 rounded-xl md:rounded-2xl font-bold hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-2 md:gap-3 transition-all shadow-sm text-xs md:text-sm disabled:opacity-50"
                 >
                     <GoogleIcon />
                     <span>{t(`${prefix}_google`)}</span>
@@ -211,13 +228,14 @@ export const Login: React.FC = () => {
                     onClick={() => { setLoading(false); setMode(`${prefix}-email` as LoginMode); setIsSignUp(forSignUp); clearError(); }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className={`w-full text-white py-3 px-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg text-sm ${
+                    className={`w-full text-white py-2 md:py-3 px-3 md:px-4 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-2 md:gap-3 transition-all shadow-lg text-xs md:text-sm ${
                         forSignUp
                             ? 'bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500'
                             : 'bg-emerald-500 hover:bg-emerald-600'
                     }`}
                 >
-                    <Mail size={18} />
+                    <Mail size={16} className="md:hidden" />
+                    <Mail size={18} className="hidden md:block" />
                     <span>{t(`${prefix}_email`)}</span>
                 </motion.button>
             </div>
@@ -357,7 +375,7 @@ export const Login: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-amber-100 via-green-100 to-emerald-200 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-screen bg-gradient-to-b from-amber-100 via-green-100 to-emerald-200 flex items-center justify-center p-2 md:p-4 relative overflow-hidden">
             {/* Forest Background Decorations */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-emerald-700/40 to-transparent" />
@@ -407,7 +425,7 @@ export const Login: React.FC = () => {
             </div>
 
             {/* Main Content */}
-            <div className="relative z-10 w-full max-w-5xl flex flex-col items-center justify-center gap-6">
+            <div className="relative z-10 w-full max-w-5xl flex flex-col items-center justify-center gap-2 md:gap-6">
 
                 {/* Mascots row (desktop) */}
                 <div className="hidden md:flex items-end justify-center gap-8 mb-2">
@@ -468,22 +486,20 @@ export const Login: React.FC = () => {
                     </motion.div>
                 </div>
 
-                {/* Mobile: mascots + logo */}
-                <div className="md:hidden text-center mb-2">
-                    <div className="flex justify-center gap-6 mb-4">
-                        <motion.img src={owlImage} alt="Owl" className="w-20 h-20 object-contain drop-shadow-xl"
-                            animate={{ y: [0, -6, 0] }} transition={{ duration: 2.5, repeat: Infinity }} />
-                        <div className="flex flex-col items-center justify-center">
-                            <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg mb-1">
-                                <span className="text-3xl">🌲</span>
-                            </div>
+                {/* Mobile: mascots + logo - compact for landscape */}
+                <div className="md:hidden text-center flex items-center justify-center gap-3">
+                    <motion.img src={owlImage} alt="Owl" className="w-10 h-10 object-contain drop-shadow-xl"
+                        animate={{ y: [0, -4, 0] }} transition={{ duration: 2.5, repeat: Infinity }} />
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-lg">🌲</span>
                         </div>
-                        <motion.img src={squirrelImage} alt="Squirrel" className="w-20 h-20 object-contain drop-shadow-xl"
-                            animate={{ y: [0, -6, 0] }} transition={{ duration: 2.5, repeat: Infinity, delay: 0.5 }} />
+                        <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-green-700">
+                            STORYFOREST
+                        </h1>
                     </div>
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 to-green-700">
-                        STORYFOREST
-                    </h1>
+                    <motion.img src={squirrelImage} alt="Squirrel" className="w-10 h-10 object-contain drop-shadow-xl"
+                        animate={{ y: [0, -4, 0] }} transition={{ duration: 2.5, repeat: Infinity, delay: 0.5 }} />
                 </div>
 
                 {/* Two-column card: Login (left) | Sign Up (right) */}
@@ -491,7 +507,7 @@ export const Login: React.FC = () => {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.3 }}
-                    className="w-full max-w-3xl bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border-4 border-emerald-300/60 overflow-hidden"
+                    className="w-full max-w-3xl bg-white/95 backdrop-blur-md rounded-2xl md:rounded-3xl shadow-2xl border-2 md:border-4 border-emerald-300/60 overflow-hidden"
                 >
                     {/* Error banner */}
                     {error && (
@@ -500,15 +516,15 @@ export const Login: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="flex flex-col md:flex-row">
+                    <div className="flex flex-row">
                         {/* Left: Login */}
-                        <div className="flex-1 p-6 md:p-8">
-                            <div className="text-center mb-4">
-                                <div className="inline-flex items-center gap-2 bg-emerald-50 rounded-full px-4 py-1.5">
-                                    <span className="text-lg">👋</span>
-                                    <h2 className="text-base font-bold text-emerald-700">{t('login_section_signin')}</h2>
+                        <div className="flex-1 p-3 md:p-8">
+                            <div className="text-center mb-2 md:mb-4">
+                                <div className="inline-flex items-center gap-1.5 md:gap-2 bg-emerald-50 rounded-full px-2.5 py-1 md:px-4 md:py-1.5">
+                                    <span className="text-sm md:text-lg">👋</span>
+                                    <h2 className="text-xs md:text-base font-bold text-emerald-700">{t('login_section_signin')}</h2>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-1.5">{t('login_signin_desc')}</p>
+                                <p className="text-[10px] md:text-xs text-gray-400 mt-1">{t('login_signin_desc')}</p>
                             </div>
 
                             <AnimatePresence mode="wait">
@@ -516,26 +532,21 @@ export const Login: React.FC = () => {
                             </AnimatePresence>
                         </div>
 
-                        {/* Divider */}
-                        <div className="hidden md:flex flex-col items-center py-8">
+                        {/* Divider - always vertical since always flex-row */}
+                        <div className="flex flex-col items-center py-3 md:py-8">
                             <div className="w-px flex-1 bg-gray-200" />
-                            <span className="text-xs font-bold text-gray-300 uppercase tracking-wider py-3">{t('login_or')}</span>
+                            <span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase tracking-wider py-1.5 md:py-3">{t('login_or')}</span>
                             <div className="w-px flex-1 bg-gray-200" />
-                        </div>
-                        <div className="md:hidden flex items-center gap-3 px-6">
-                            <div className="flex-1 h-px bg-gray-200" />
-                            <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{t('login_or')}</span>
-                            <div className="flex-1 h-px bg-gray-200" />
                         </div>
 
                         {/* Right: Sign Up */}
-                        <div className="flex-1 p-6 md:p-8">
-                            <div className="text-center mb-4">
-                                <div className="inline-flex items-center gap-2 bg-amber-50 rounded-full px-4 py-1.5">
-                                    <span className="text-lg">🎉</span>
-                                    <h2 className="text-base font-bold text-amber-700">{t('login_section_signup')}</h2>
+                        <div className="flex-1 p-3 md:p-8">
+                            <div className="text-center mb-2 md:mb-4">
+                                <div className="inline-flex items-center gap-1.5 md:gap-2 bg-amber-50 rounded-full px-2.5 py-1 md:px-4 md:py-1.5">
+                                    <span className="text-sm md:text-lg">🎉</span>
+                                    <h2 className="text-xs md:text-base font-bold text-amber-700">{t('login_section_signup')}</h2>
                                 </div>
-                                <p className="text-xs text-gray-400 mt-1.5">{t('login_signup_desc')}</p>
+                                <p className="text-[10px] md:text-xs text-gray-400 mt-1">{t('login_signup_desc')}</p>
                             </div>
 
                             <AnimatePresence mode="wait">
@@ -545,8 +556,8 @@ export const Login: React.FC = () => {
                     </div>
 
                     {/* Footer */}
-                    <div className="border-t border-gray-100 px-6 py-3 text-center">
-                        <p className="text-gray-400 text-xs">
+                    <div className="border-t border-gray-100 px-4 py-1.5 md:px-6 md:py-3 text-center">
+                        <p className="text-gray-400 text-[10px] md:text-xs">
                             {t('login_footer_hint')} ✨
                         </p>
                     </div>
@@ -558,7 +569,7 @@ export const Login: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 1 }}
-                className="absolute bottom-4 left-0 right-0 z-10 text-center text-emerald-600/60 text-sm"
+                className="absolute bottom-1 md:bottom-4 left-0 right-0 z-10 text-center text-emerald-600/60 text-xs md:text-sm hidden md:block"
             >
                 <p>🌲 STORYFOREST 🌲</p>
             </motion.footer>
